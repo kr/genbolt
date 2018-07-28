@@ -1,0 +1,395 @@
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"go/ast"
+	"go/format"
+	"go/printer"
+	"go/token"
+	"go/types"
+	"io"
+	"text/template"
+
+	"golang.org/x/tools/go/loader"
+)
+
+var prog *loader.Program
+
+func gen(name string) (code []byte, err error) {
+	var cfg loader.Config
+	cfg.CreateFromFilenames("", name)
+	prog, err = cfg.Load()
+	if err != nil {
+		return nil, err
+	}
+	if n := len(prog.AllPackages); n != 1 {
+		return nil, fmt.Errorf("got %d packages, want 1", n)
+	}
+	for _, pi := range prog.AllPackages {
+		for _, file := range pi.Files {
+			var b bytes.Buffer
+			err = genFile(&b, file, pi.Pkg, prog)
+			if err != nil {
+				return nil, err
+			}
+			return format.Source(b.Bytes())
+		}
+	}
+	panic("unreached")
+}
+
+type fieldInfo struct {
+	B string // bucket (struct type name)
+	F string // field name
+	T string // type name of field
+}
+
+func genFile(w io.Writer, file *ast.File, pkg *types.Package, prog *loader.Program) error {
+	scope := pkg.Scope()
+	keys := make(map[string]bool)
+	fmt.Fprintln(w, "package", pkg.Name())
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, imports)
+	type container struct {
+		Type string
+		Elem string
+	}
+	mapTypes := make(map[string]*container)
+	seqTypes := make(map[string]*container)
+	needBucket := false
+	needPut := false
+	for _, decl := range file.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok {
+			return fmt.Errorf("unexpected decl: %v", decl)
+		}
+		if genDecl.Tok != token.TYPE {
+			return fmt.Errorf("unexpected decl: %v", decl)
+		}
+		for _, spec := range genDecl.Specs {
+			spec := spec.(*ast.TypeSpec)
+			if spec.Assign != 0 {
+				return fmt.Errorf("unexpected decl: %v", decl)
+			}
+			structType, ok := spec.Type.(*ast.StructType)
+			if !ok {
+				return fmt.Errorf("need struct type")
+			}
+
+			fmt.Fprintln(w)
+
+			if spec.Name.Name == "Root" {
+				fmt.Fprintln(w, rootType)
+
+				for _, field := range structType.Fields.List {
+					for _, name := range field.Names {
+						if !name.IsExported() {
+							return fmt.Errorf("all fields must be exported")
+						}
+
+						keys[name.Name] = true
+						switch fieldType := field.Type.(type) {
+						case *ast.StarExpr:
+							typeName, ok := fieldType.X.(*ast.Ident)
+							if !ok {
+								return fmt.Errorf("cannot have pointer to non-struct type")
+							}
+							templatePointerField.Execute(w, fieldInfo{
+								B: spec.Name.Name,
+								F: name.Name,
+								T: typeName.Name,
+							})
+							needBucket = true
+						default:
+							return fmt.Errorf("unsupported root field type %s", esprint(field.Type))
+						}
+					}
+				}
+				continue
+			}
+
+			fmt.Fprintln(w, "type", spec.Name, "struct {")
+			fmt.Fprintln(w, "\tdb *bolt.Bucket")
+			fmt.Fprintln(w, "}")
+
+			for _, field := range structType.Fields.List {
+				for _, name := range field.Names {
+					if !name.IsExported() {
+						return fmt.Errorf("all fields must be exported")
+					}
+					keys[name.Name] = true
+
+					switch fieldType := field.Type.(type) {
+					case *ast.Ident:
+						if !isBasic(scope, fieldType.Name) {
+							return fmt.Errorf("unsupported type %s (try *%s instead?)", fieldType.Name, fieldType.Name)
+						}
+						templateField.Execute(w, fieldInfo{
+							B: spec.Name.Name,
+							F: name.Name,
+							T: fieldType.Name,
+						})
+						needPut = true
+					case *ast.StarExpr:
+						typeName, ok := fieldType.X.(*ast.Ident)
+						if !ok {
+							return fmt.Errorf("cannot have pointer to non-named type")
+						}
+						// TODO(kr): look up typeName.Name and make sure
+						// it's a struct.
+						templatePointerField.Execute(w, fieldInfo{
+							B: spec.Name.Name,
+							F: name.Name,
+							T: typeName.Name,
+						})
+						needBucket = true
+					case *ast.ArrayType:
+						if fieldType.Len != nil {
+							return fmt.Errorf("cannot have array type (use a slice)")
+						}
+
+						switch elemType := fieldType.Elt.(type) {
+						case *ast.Ident:
+							if !isBasic(scope, elemType.Name) {
+								return fmt.Errorf("unsupported type %s (try *%s instead?)", elemType.Name, elemType.Name)
+							}
+							templateField.Execute(w, fieldInfo{
+								B: spec.Name.Name,
+								F: name.Name,
+								T: "[]" + elemType.Name,
+							})
+							needPut = true
+						case *ast.StarExpr:
+							typeName, ok := elemType.X.(*ast.Ident)
+							if !ok {
+								return fmt.Errorf("cannot have pointer to non-named type")
+							}
+							// TODO(kr): look up typeName.Name and make sure
+							// it's a struct.
+							seqType := typeName.Name + "Seq"
+							seq := &container{
+								Type: seqType,
+								Elem: typeName.Name,
+							}
+							if prev := seqTypes[seqType]; prev != nil && *prev != *seq {
+								return fmt.Errorf("conflicting seq types map[string]%s and map[string]%s", prev.Elem, seq.Elem)
+							}
+							seqTypes[seqType] = seq
+							templatePointerField.Execute(w, fieldInfo{
+								B: spec.Name.Name,
+								F: name.Name,
+								T: seqType,
+							})
+							needBucket = true
+						default:
+							return fmt.Errorf("slice element must be pointer to struct or basic type")
+						}
+					case *ast.MapType:
+						keyType, ok := fieldType.Key.(*ast.Ident)
+						if !ok || keyType.Name != "string" {
+							return fmt.Errorf("map key must be string")
+						}
+						valueType, ok := fieldType.Value.(*ast.StarExpr)
+						if !ok {
+							return fmt.Errorf("map value must be pointer to named struct type")
+						}
+						typeName, ok := valueType.X.(*ast.Ident)
+						if !ok {
+							return fmt.Errorf("map value must be pointer to named struct type")
+						}
+						mapType := typeName.Name + "Map"
+						mp := &container{
+							Type: mapType,
+							Elem: typeName.Name,
+						}
+						if prev := mapTypes[mapType]; prev != nil && *prev != *mp {
+							return fmt.Errorf("conflicting map types map[string]%s and map[string]%s", prev.Elem, mp.Elem)
+						}
+						mapTypes[mapType] = mp
+
+						templatePointerField.Execute(w, fieldInfo{
+							B: spec.Name.Name,
+							F: name.Name,
+							T: mapType,
+						})
+						needBucket = true
+					default:
+						return fmt.Errorf("unsupported type %v", esprint(field.Type))
+					}
+				}
+			}
+		}
+	}
+	for _, mp := range mapTypes {
+		templateMapType.Execute(w, mp)
+	}
+	for _, seq := range seqTypes {
+		templateSeqType.Execute(w, seq)
+	}
+	templateKeys.Execute(w, keys)
+	if needBucket {
+		fmt.Fprintln(w, bucket)
+	}
+	if needPut {
+		fmt.Fprintln(w, put)
+	}
+	return nil
+}
+
+func esprint(node interface{}) string {
+	var b bytes.Buffer
+	printer.Fprint(&b, prog.Fset, node)
+	return b.String()
+}
+
+func isBasic(scope *types.Scope, name string) bool {
+	obj := scope.Lookup(name)
+	if obj == nil && scope == types.Universe {
+		return false
+	}
+	if obj == nil {
+		return isBasic(types.Universe, name)
+	}
+	_, ok := obj.Type().(*types.Basic)
+	return ok
+}
+
+var tlib = template.Must(template.New("lib").Parse(`
+{{define "get"}}
+{{- if eq . "[]byte" -}}
+	return v
+{{- else if eq . "string" -}}
+	return string(v)
+{{- else -}}
+	return int64(binary.BigEndian.Uint64(v))
+{{- end -}}
+{{end}}
+
+{{define "put"}}
+{{- if eq . "[]byte" -}}
+	v := x
+{{- else if eq . "string" -}}
+	v := []byte(x)
+{{- else -}}
+	v := make([]byte, 8)
+	binary.BigEndian.PutUint64(uint64(x))
+{{- end -}}
+{{end}}
+`))
+
+var templateField = template.Must(template.Must(tlib.Clone()).Parse(`
+func (o *{{.B}}) {{.F}}() {{.T}} {
+	v := o.db.Get(key{{.F}})
+	{{template "get" .T}}
+}
+
+func (o *{{.B}}) Set{{.F}}(x {{.T}}) {
+	{{template "put" .T}}
+	put(o.db, key{{.F}}, v)
+}
+`))
+
+var templatePointerField = template.Must(template.Must(tlib.Clone()).Parse(`
+func (o *{{.B}}) {{.F}}() *{{.T}} {
+	return &{{.T}}{bucket(o.db, key{{.F}})}
+}
+`))
+
+var templateMapType = template.Must(template.Must(tlib.Clone()).Parse(`
+type {{.Type}} struct {
+	db *bolt.Bucket
+}
+
+func (o *{{.Type}}) Get(key []byte) *{{.Elem}} {
+	return &{{.Elem}}{bucket(o.db, key)}
+}
+
+func (o *{{.Type}}) GetByString(key string) *{{.Elem}} {
+	{{/* TODO(kr): consider unsafe conversion */ -}}
+	return &{{.Elem}}{bucket(o.db, []byte(key))}
+}
+`))
+
+var templateSeqType = template.Must(template.Must(tlib.Clone()).Parse(`
+type {{.Type}} struct {
+	db *bolt.Bucket
+}
+
+func (o *{{.Type}}) Get(n uint64) *{{.Elem}} {
+	key := make([]byte, 8)
+	binary.BigEndian.PutUint64(n)
+	return &{{.Elem}}{bucket(o.db, key)}
+}
+
+func (o *{{.Type}}) Add() *{{.Elem}} {
+	n, err := o.db.NextSequence()
+	if err != nil {
+		panic(err)
+	}
+	return o.Get(n)
+}
+`))
+
+var templateKeys = template.Must(template.Must(tlib.Clone()).Parse(`
+var (
+{{- range $name, $_ := .}}
+	key{{$name}} = []byte({{printf "%q" $name}})
+{{- end}}
+)
+`))
+
+const imports = `
+import binary "encoding/binary"
+import bolt "github.com/coreos/bbolt"
+
+const _ = binary.MaxVarintLen16
+const _ = bolt.MaxKeySize
+`
+
+const bucket = `
+type db interface {
+	Writable() bool
+	CreateBucketIfNotExists([]byte) *bolt.Bucket
+	Bucket([]byte) *bolt.Bucket
+}
+
+func bucket(db db, key []byte) *bolt.Bucket {
+	if db.Writable() {
+		return db.CreateBucketIfNotExists(key)
+	} else {
+		return db.Bucket(key)
+	}
+}
+`
+
+const put = `
+func put(b *bolt.Bucket, key, value []byte) {
+	err := b.Put(key, value)
+	if err != nil {
+		panic(err)
+	}
+}
+`
+
+const rootType = `
+type Root struct {
+	db *bolt.Tx
+}
+
+func NewRoot(tx *bolt.Tx) *Root {
+	return &Root{tx}
+}
+
+func View(db *bolt.DB, f func(*Root, *bolt.Tx) error) error {
+	return db.View(func(tx *bolt.Tx) error {
+		return f(&Root{tx}, tx)
+	})
+}
+
+func Update(db *bolt.DB, f func(*Root, *bolt.Tx) error) error {
+	return db.Update(func(tx *bolt.Tx) error {
+		return f(&Root{tx}, tx)
+	})
+}
+`

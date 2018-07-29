@@ -35,6 +35,43 @@ func (o *Root) F() *T {
 	return &T{bucket(o.db, keyF)}
 }
 
+// RootFoo is a root with a longer name.
+type RootFoo struct {
+	db *bolt.Tx
+}
+
+// NewRootFoo returns a new RootFoo for tx.
+//
+// RootFoo is a root with a longer name.
+func NewRootFoo(tx *bolt.Tx) *RootFoo {
+	return &RootFoo{tx}
+}
+
+func ViewFoo(db *bolt.DB, f func(*RootFoo, *bolt.Tx) error) error {
+	return db.View(func(tx *bolt.Tx) error {
+		return f(&RootFoo{tx}, tx)
+	})
+}
+
+func UpdateFoo(db *bolt.DB, f func(*RootFoo, *bolt.Tx) error) error {
+	return db.Update(func(tx *bolt.Tx) error {
+		return f(&RootFoo{tx}, tx)
+	})
+}
+
+func (o *RootFoo) F() *T {
+	return &T{bucket(o.db, keyF)}
+}
+
+// Rootbar isn't a root!
+type Rootbar struct {
+	db *bolt.Bucket
+}
+
+func (o *Rootbar) F() *T {
+	return &T{bucket(o.db, keyF)}
+}
+
 type T struct {
 	db *bolt.Bucket
 }

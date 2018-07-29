@@ -6,4 +6,14 @@ type Root struct {
 	F *T
 }
 
+// RootFoo is a root with a longer name.
+type RootFoo struct {
+	F *T
+}
+
+// Rootbar isn't a root!
+type Rootbar struct {
+	F *T
+}
+
 type T struct{}

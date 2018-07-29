@@ -10,6 +10,7 @@ import (
 	"go/token"
 	"go/types"
 	"io"
+	"strings"
 	"text/template"
 
 	"golang.org/x/tools/go/loader"
@@ -40,6 +41,11 @@ func gen(name string) (code []byte, err error) {
 		}
 	}
 	panic("unreached")
+}
+
+type rootInfo struct {
+	S string // name suffix, e.g. "Foo" in "RootFoo"
+	C *ast.CommentGroup
 }
 
 type fieldInfo struct {
@@ -83,35 +89,41 @@ func genFile(w io.Writer, file *ast.File, pkg *types.Package, prog *loader.Progr
 
 			fmt.Fprintln(w)
 
-			if spec.Name.Name == "Root" {
-				templateRoot.Execute(w, genDecl.Doc)
+			if s := spec.Name.Name; strings.HasPrefix(s, "Root") {
+				suf := s[4:]
+				if suf == "" || ast.IsExported(suf) {
+					templateRoot.Execute(w, rootInfo{
+						S: suf,
+						C: genDecl.Doc,
+					})
 
-				for _, field := range structType.Fields.List {
-					for _, name := range field.Names {
-						if !name.IsExported() {
-							return fmt.Errorf("all fields must be exported")
-						}
-
-						keys[name.Name] = true
-						switch fieldType := field.Type.(type) {
-						case *ast.StarExpr:
-							typeName, ok := fieldType.X.(*ast.Ident)
-							if !ok {
-								return fmt.Errorf("cannot have pointer to non-struct type")
+					for _, field := range structType.Fields.List {
+						for _, name := range field.Names {
+							if !name.IsExported() {
+								return fmt.Errorf("all fields must be exported")
 							}
-							templatePointerField.Execute(w, fieldInfo{
-								B: spec.Name.Name,
-								F: name.Name,
-								T: typeName.Name,
-								C: field.Doc,
-							})
-							needBucket = true
-						default:
-							return fmt.Errorf("unsupported root field type %s", esprint(field.Type))
+
+							keys[name.Name] = true
+							switch fieldType := field.Type.(type) {
+							case *ast.StarExpr:
+								typeName, ok := fieldType.X.(*ast.Ident)
+								if !ok {
+									return fmt.Errorf("cannot have pointer to non-struct type")
+								}
+								templatePointerField.Execute(w, fieldInfo{
+									B: spec.Name.Name,
+									F: name.Name,
+									T: typeName.Name,
+									C: field.Doc,
+								})
+								needBucket = true
+							default:
+								return fmt.Errorf("unsupported root field type %s", esprint(field.Type))
+							}
 						}
 					}
+					continue
 				}
-				continue
 			}
 
 			if genDecl.Doc != nil {
@@ -372,35 +384,35 @@ var (
 `))
 
 var templateRoot = template.Must(template.Must(tlib.Clone()).Parse(`
-{{if .Text -}}
-{{range .List -}}
+{{if .C.Text -}}
+{{range .C.List -}}
 {{.Text}}
 {{end -}}
 {{end -}}
-type Root struct {
+type Root{{.S}} struct {
 	db *bolt.Tx
 }
 
-// NewRoot returns a new Root for tx.
-{{if .Text -}}
+// NewRoot{{.S}} returns a new Root{{.S}} for tx.
+{{if .C.Text -}}
 //
-{{range .List -}}
+{{range .C.List -}}
 {{.Text}}
 {{end -}}
 {{end -}}
-func NewRoot(tx *bolt.Tx) *Root {
-	return &Root{tx}
+func NewRoot{{.S}}(tx *bolt.Tx) *Root{{.S}} {
+	return &Root{{.S}}{tx}
 }
 
-func View(db *bolt.DB, f func(*Root, *bolt.Tx) error) error {
+func View{{.S}}(db *bolt.DB, f func(*Root{{.S}}, *bolt.Tx) error) error {
 	return db.View(func(tx *bolt.Tx) error {
-		return f(&Root{tx}, tx)
+		return f(&Root{{.S}}{tx}, tx)
 	})
 }
 
-func Update(db *bolt.DB, f func(*Root, *bolt.Tx) error) error {
+func Update{{.S}}(db *bolt.DB, f func(*Root{{.S}}, *bolt.Tx) error) error {
 	return db.Update(func(tx *bolt.Tx) error {
-		return f(&Root{tx}, tx)
+		return f(&Root{{.S}}{tx}, tx)
 	})
 }
 `))

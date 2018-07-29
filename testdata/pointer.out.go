@@ -10,6 +10,8 @@ type T struct {
 	db *bolt.Bucket
 }
 
+// U is a U.
+// It is useful.
 func (o *T) U() *U {
 	return &U{bucket(o.db, keyU)}
 }

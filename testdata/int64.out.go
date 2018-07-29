@@ -15,6 +15,7 @@ func (o *T) N() int64 {
 	return int64(binary.BigEndian.Uint64(v))
 }
 
+// SetN stores x as the value of N.
 func (o *T) SetN(x int64) {
 	v := make([]byte, 8)
 	binary.BigEndian.PutUint64(uint64(x))

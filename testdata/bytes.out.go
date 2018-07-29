@@ -6,15 +6,22 @@ import bolt "github.com/coreos/bbolt"
 const _ = binary.MaxVarintLen16
 const _ = bolt.MaxKeySize
 
+// T is a nice thing.
 type T struct {
 	db *bolt.Bucket
 }
 
+// B is a byte slice.
+// It is useful.
 func (o *T) B() []byte {
 	v := o.db.Get(keyB)
 	return v
 }
 
+// SetB stores x as the value of B.
+//
+// B is a byte slice.
+// It is useful.
 func (o *T) SetB(x []byte) {
 	v := x
 	put(o.db, keyB, v)

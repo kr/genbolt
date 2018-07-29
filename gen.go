@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/format"
+	"go/parser"
 	"go/printer"
 	"go/token"
 	"go/types"
@@ -17,7 +18,9 @@ import (
 var prog *loader.Program
 
 func gen(name string) (code []byte, err error) {
-	var cfg loader.Config
+	cfg := loader.Config{
+		ParserMode: parser.ParseComments,
+	}
 	cfg.CreateFromFilenames("", name)
 	prog, err = cfg.Load()
 	if err != nil {
@@ -43,6 +46,7 @@ type fieldInfo struct {
 	B string // bucket (struct type name)
 	F string // field name
 	T string // type name of field
+	C *ast.CommentGroup
 }
 
 func genFile(w io.Writer, file *ast.File, pkg *types.Package, prog *loader.Program) error {
@@ -80,7 +84,7 @@ func genFile(w io.Writer, file *ast.File, pkg *types.Package, prog *loader.Progr
 			fmt.Fprintln(w)
 
 			if spec.Name.Name == "Root" {
-				fmt.Fprintln(w, rootType)
+				templateRoot.Execute(w, genDecl.Doc)
 
 				for _, field := range structType.Fields.List {
 					for _, name := range field.Names {
@@ -99,6 +103,7 @@ func genFile(w io.Writer, file *ast.File, pkg *types.Package, prog *loader.Progr
 								B: spec.Name.Name,
 								F: name.Name,
 								T: typeName.Name,
+								C: field.Doc,
 							})
 							needBucket = true
 						default:
@@ -109,6 +114,11 @@ func genFile(w io.Writer, file *ast.File, pkg *types.Package, prog *loader.Progr
 				continue
 			}
 
+			if genDecl.Doc != nil {
+				for _, c := range genDecl.Doc.List {
+					fmt.Fprintln(w, c.Text)
+				}
+			}
 			fmt.Fprintln(w, "type", spec.Name, "struct {")
 			fmt.Fprintln(w, "\tdb *bolt.Bucket")
 			fmt.Fprintln(w, "}")
@@ -129,6 +139,7 @@ func genFile(w io.Writer, file *ast.File, pkg *types.Package, prog *loader.Progr
 							B: spec.Name.Name,
 							F: name.Name,
 							T: fieldType.Name,
+							C: field.Doc,
 						})
 						needPut = true
 					case *ast.StarExpr:
@@ -142,6 +153,7 @@ func genFile(w io.Writer, file *ast.File, pkg *types.Package, prog *loader.Progr
 							B: spec.Name.Name,
 							F: name.Name,
 							T: typeName.Name,
+							C: field.Doc,
 						})
 						needBucket = true
 					case *ast.ArrayType:
@@ -158,6 +170,7 @@ func genFile(w io.Writer, file *ast.File, pkg *types.Package, prog *loader.Progr
 								B: spec.Name.Name,
 								F: name.Name,
 								T: "[]" + elemType.Name,
+								C: field.Doc,
 							})
 							needPut = true
 						case *ast.StarExpr:
@@ -180,6 +193,7 @@ func genFile(w io.Writer, file *ast.File, pkg *types.Package, prog *loader.Progr
 								B: spec.Name.Name,
 								F: name.Name,
 								T: seqType,
+								C: field.Doc,
 							})
 							needBucket = true
 						default:
@@ -212,6 +226,7 @@ func genFile(w io.Writer, file *ast.File, pkg *types.Package, prog *loader.Progr
 							B: spec.Name.Name,
 							F: name.Name,
 							T: mapType,
+							C: field.Doc,
 						})
 						needBucket = true
 					default:
@@ -279,11 +294,23 @@ var tlib = template.Must(template.New("lib").Parse(`
 `))
 
 var templateField = template.Must(template.Must(tlib.Clone()).Parse(`
+{{if .C.Text -}}
+{{range .C.List -}}
+{{.Text}}
+{{end -}}
+{{end -}}
 func (o *{{.B}}) {{.F}}() {{.T}} {
 	v := o.db.Get(key{{.F}})
 	{{template "get" .T}}
 }
 
+// Set{{.F}} stores x as the value of {{.F}}.
+{{if .C.Text -}}
+//
+{{range .C.List -}}
+{{.Text}}
+{{end -}}
+{{end -}}
 func (o *{{.B}}) Set{{.F}}(x {{.T}}) {
 	{{template "put" .T}}
 	put(o.db, key{{.F}}, v)
@@ -291,6 +318,11 @@ func (o *{{.B}}) Set{{.F}}(x {{.T}}) {
 `))
 
 var templatePointerField = template.Must(template.Must(tlib.Clone()).Parse(`
+{{if .C.Text -}}
+{{range .C.List -}}
+{{.Text}}
+{{end -}}
+{{end -}}
 func (o *{{.B}}) {{.F}}() *{{.T}} {
 	return &{{.T}}{bucket(o.db, key{{.F}})}
 }
@@ -339,6 +371,40 @@ var (
 )
 `))
 
+var templateRoot = template.Must(template.Must(tlib.Clone()).Parse(`
+{{if .Text -}}
+{{range .List -}}
+{{.Text}}
+{{end -}}
+{{end -}}
+type Root struct {
+	db *bolt.Tx
+}
+
+// NewRoot returns a new Root for tx.
+{{if .Text -}}
+//
+{{range .List -}}
+{{.Text}}
+{{end -}}
+{{end -}}
+func NewRoot(tx *bolt.Tx) *Root {
+	return &Root{tx}
+}
+
+func View(db *bolt.DB, f func(*Root, *bolt.Tx) error) error {
+	return db.View(func(tx *bolt.Tx) error {
+		return f(&Root{tx}, tx)
+	})
+}
+
+func Update(db *bolt.DB, f func(*Root, *bolt.Tx) error) error {
+	return db.Update(func(tx *bolt.Tx) error {
+		return f(&Root{tx}, tx)
+	})
+}
+`))
+
 const imports = `
 import binary "encoding/binary"
 import bolt "github.com/coreos/bbolt"
@@ -369,27 +435,5 @@ func put(b *bolt.Bucket, key, value []byte) {
 	if err != nil {
 		panic(err)
 	}
-}
-`
-
-const rootType = `
-type Root struct {
-	db *bolt.Tx
-}
-
-func NewRoot(tx *bolt.Tx) *Root {
-	return &Root{tx}
-}
-
-func View(db *bolt.DB, f func(*Root, *bolt.Tx) error) error {
-	return db.View(func(tx *bolt.Tx) error {
-		return f(&Root{tx}, tx)
-	})
-}
-
-func Update(db *bolt.DB, f func(*Root, *bolt.Tx) error) error {
-	return db.Update(func(tx *bolt.Tx) error {
-		return f(&Root{tx}, tx)
-	})
 }
 `

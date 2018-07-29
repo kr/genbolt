@@ -6,10 +6,14 @@ import bolt "github.com/coreos/bbolt"
 const _ = binary.MaxVarintLen16
 const _ = bolt.MaxKeySize
 
+// Hello, this is the root.
 type Root struct {
 	db *bolt.Tx
 }
 
+// NewRoot returns a new Root for tx.
+//
+// Hello, this is the root.
 func NewRoot(tx *bolt.Tx) *Root {
 	return &Root{tx}
 }
@@ -26,6 +30,7 @@ func Update(db *bolt.DB, f func(*Root, *bolt.Tx) error) error {
 	})
 }
 
+// F, what a lovely field, F.
 func (o *Root) F() *T {
 	return &T{bucket(o.db, keyF)}
 }

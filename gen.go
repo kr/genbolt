@@ -323,24 +323,24 @@ var tlib = template.Must(template.New("lib").Parse(`
 	v := []byte{x}
 {{- else if eq . "uint16" -}}
 	v := make([]byte, 2)
-	binary.BigEndian.PutUint16(x)
+	binary.BigEndian.PutUint16(v, x)
 {{- else if eq . "uint32" -}}
 	v := make([]byte, 4)
-	binary.BigEndian.PutUint32(x)
+	binary.BigEndian.PutUint32(v, x)
 {{- else if eq . "uint64" -}}
 	v := make([]byte, 8)
-	binary.BigEndian.PutUint64(x)
+	binary.BigEndian.PutUint64(v, x)
 {{- else if eq . "int8" -}}
 	v := []byte{byte(x)}
 {{- else if eq . "int16" -}}
 	v := make([]byte, 2)
-	binary.BigEndian.PutUint16(uint16(x))
+	binary.BigEndian.PutUint16(v, uint16(x))
 {{- else if eq . "int32" -}}
 	v := make([]byte, 4)
-	binary.BigEndian.PutUint32(uint32(x))
+	binary.BigEndian.PutUint32(v, uint32(x))
 {{- else if eq . "int64" -}}
 	v := make([]byte, 8)
-	binary.BigEndian.PutUint64(uint64(x))
+	binary.BigEndian.PutUint64(v, uint64(x))
 {{- else -}}
 	panic("internal error") {{- /* never generated */}}
 {{- end -}}
@@ -404,7 +404,7 @@ type {{.Type}} struct {
 
 func (o *{{.Type}}) Get(n uint64) *{{.Elem}} {
 	key := make([]byte, 8)
-	binary.BigEndian.PutUint64(n)
+	binary.BigEndian.PutUint64(key, n)
 	return &{{.Elem}}{bucket(o.db, key)}
 }
 

@@ -24,7 +24,7 @@ type USeq struct {
 
 func (o *USeq) Get(n uint64) *U {
 	key := make([]byte, 8)
-	binary.BigEndian.PutUint64(n)
+	binary.BigEndian.PutUint64(key, n)
 	return &U{bucket(o.db, key)}
 }
 

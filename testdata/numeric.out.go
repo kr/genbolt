@@ -43,7 +43,7 @@ func (o *T) Uint16() uint16 {
 // PutUint16 stores x as the value of Uint16.
 func (o *T) PutUint16(x uint16) {
 	v := make([]byte, 2)
-	binary.BigEndian.PutUint16(x)
+	binary.BigEndian.PutUint16(v, x)
 	put(o.db, keyUint16, v)
 }
 
@@ -55,7 +55,7 @@ func (o *T) Uint32() uint32 {
 // PutUint32 stores x as the value of Uint32.
 func (o *T) PutUint32(x uint32) {
 	v := make([]byte, 4)
-	binary.BigEndian.PutUint32(x)
+	binary.BigEndian.PutUint32(v, x)
 	put(o.db, keyUint32, v)
 }
 
@@ -67,7 +67,7 @@ func (o *T) Uint64() uint64 {
 // PutUint64 stores x as the value of Uint64.
 func (o *T) PutUint64(x uint64) {
 	v := make([]byte, 8)
-	binary.BigEndian.PutUint64(x)
+	binary.BigEndian.PutUint64(v, x)
 	put(o.db, keyUint64, v)
 }
 
@@ -90,7 +90,7 @@ func (o *T) Int16() int16 {
 // PutInt16 stores x as the value of Int16.
 func (o *T) PutInt16(x int16) {
 	v := make([]byte, 2)
-	binary.BigEndian.PutUint16(uint16(x))
+	binary.BigEndian.PutUint16(v, uint16(x))
 	put(o.db, keyInt16, v)
 }
 
@@ -102,7 +102,7 @@ func (o *T) Int32() int32 {
 // PutInt32 stores x as the value of Int32.
 func (o *T) PutInt32(x int32) {
 	v := make([]byte, 4)
-	binary.BigEndian.PutUint32(uint32(x))
+	binary.BigEndian.PutUint32(v, uint32(x))
 	put(o.db, keyInt32, v)
 }
 
@@ -114,7 +114,7 @@ func (o *T) Int64() int64 {
 // PutInt64 stores x as the value of Int64.
 func (o *T) PutInt64(x int64) {
 	v := make([]byte, 8)
-	binary.BigEndian.PutUint64(uint64(x))
+	binary.BigEndian.PutUint64(v, uint64(x))
 	put(o.db, keyInt64, v)
 }
 

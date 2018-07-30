@@ -28,7 +28,8 @@ For example, consider this code.
 	}
 
 Here, Root is the root bucket.
-Field Users leads to a bucket indexed by uint64,
+Field Users leads to a bucket indexed by
+an automatically incrementing uint64,
 holding all user records.
 Type User is a bucket representing a single user.
 Field Config leads to the single Config bucket,

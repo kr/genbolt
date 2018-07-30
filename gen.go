@@ -250,12 +250,8 @@ func genFile(w io.Writer, file *ast.File, pkg *types.Package, prog *loader.Progr
 			}
 		}
 	}
-	for _, mp := range mapTypes {
-		templateMapType.Execute(w, mp)
-	}
-	for _, seq := range seqTypes {
-		templateSeqType.Execute(w, seq)
-	}
+	templateMapType.Execute(w, mapTypes)
+	templateSeqType.Execute(w, seqTypes)
 	templateKeys.Execute(w, keys)
 	if needBucket {
 		fmt.Fprintln(w, bucket)
@@ -385,6 +381,7 @@ func (o *{{.B}}) {{.F}}() *{{.T}} {
 `))
 
 var templateMapType = template.Must(template.Must(tlib.Clone()).Parse(`
+{{range .}}
 type {{.Type}} struct {
 	db *bolt.Bucket
 }
@@ -397,9 +394,11 @@ func (o *{{.Type}}) GetByString(key string) *{{.Elem}} {
 	{{/* TODO(kr): consider unsafe conversion */ -}}
 	return &{{.Elem}}{bucket(o.db, []byte(key))}
 }
+{{end}}
 `))
 
 var templateSeqType = template.Must(template.Must(tlib.Clone()).Parse(`
+{{range .}}
 type {{.Type}} struct {
 	db *bolt.Bucket
 }
@@ -417,6 +416,7 @@ func (o *{{.Type}}) Add() *{{.Elem}} {
 	}
 	return o.Get(n)
 }
+{{end}}
 `))
 
 var templateKeys = template.Must(template.Must(tlib.Clone()).Parse(`

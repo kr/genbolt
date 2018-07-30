@@ -18,11 +18,11 @@ func (o *T) B() []byte {
 	return v
 }
 
-// SetB stores x as the value of B.
+// PutB stores x as the value of B.
 //
 // B is a byte slice.
 // It is useful.
-func (o *T) SetB(x []byte) {
+func (o *T) PutB(x []byte) {
 	v := x
 	put(o.db, keyB, v)
 }

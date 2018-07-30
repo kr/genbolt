@@ -358,14 +358,14 @@ func (o *{{.B}}) {{.F}}() {{.T}} {
 	{{template "get" .T}}
 }
 
-// Set{{.F}} stores x as the value of {{.F}}.
+// Put{{.F}} stores x as the value of {{.F}}.
 {{if .C.Text -}}
 //
 {{range .C.List -}}
 {{.Text}}
 {{end -}}
 {{end -}}
-func (o *{{.B}}) Set{{.F}}(x {{.T}}) {
+func (o *{{.B}}) Put{{.F}}(x {{.T}}) {
 	{{template "put" .T}}
 	put(o.db, key{{.F}}, v)
 }

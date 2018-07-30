@@ -15,8 +15,8 @@ func (o *T) S() string {
 	return string(v)
 }
 
-// SetS stores x as the value of S.
-func (o *T) SetS(x string) {
+// PutS stores x as the value of S.
+func (o *T) PutS(x string) {
 	v := []byte(x)
 	put(o.db, keyS, v)
 }

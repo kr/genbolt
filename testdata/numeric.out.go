@@ -15,8 +15,8 @@ func (o *T) Bool() bool {
 	return v[0] != 0
 }
 
-// SetBool stores x as the value of Bool.
-func (o *T) SetBool(x bool) {
+// PutBool stores x as the value of Bool.
+func (o *T) PutBool(x bool) {
 	v := make([]byte, 1)
 	if x {
 		v[0] = 1
@@ -29,8 +29,8 @@ func (o *T) Byte() byte {
 	return v[0]
 }
 
-// SetByte stores x as the value of Byte.
-func (o *T) SetByte(x byte) {
+// PutByte stores x as the value of Byte.
+func (o *T) PutByte(x byte) {
 	v := []byte{x}
 	put(o.db, keyByte, v)
 }
@@ -40,8 +40,8 @@ func (o *T) Uint16() uint16 {
 	return binary.BigEndian.Uint16(v)
 }
 
-// SetUint16 stores x as the value of Uint16.
-func (o *T) SetUint16(x uint16) {
+// PutUint16 stores x as the value of Uint16.
+func (o *T) PutUint16(x uint16) {
 	v := make([]byte, 2)
 	binary.BigEndian.PutUint16(x)
 	put(o.db, keyUint16, v)
@@ -52,8 +52,8 @@ func (o *T) Uint32() uint32 {
 	return binary.BigEndian.Uint32(v)
 }
 
-// SetUint32 stores x as the value of Uint32.
-func (o *T) SetUint32(x uint32) {
+// PutUint32 stores x as the value of Uint32.
+func (o *T) PutUint32(x uint32) {
 	v := make([]byte, 4)
 	binary.BigEndian.PutUint32(x)
 	put(o.db, keyUint32, v)
@@ -64,8 +64,8 @@ func (o *T) Uint64() uint64 {
 	return binary.BigEndian.Uint64(v)
 }
 
-// SetUint64 stores x as the value of Uint64.
-func (o *T) SetUint64(x uint64) {
+// PutUint64 stores x as the value of Uint64.
+func (o *T) PutUint64(x uint64) {
 	v := make([]byte, 8)
 	binary.BigEndian.PutUint64(x)
 	put(o.db, keyUint64, v)
@@ -76,8 +76,8 @@ func (o *T) Int8() int8 {
 	return int8(v[0])
 }
 
-// SetInt8 stores x as the value of Int8.
-func (o *T) SetInt8(x int8) {
+// PutInt8 stores x as the value of Int8.
+func (o *T) PutInt8(x int8) {
 	v := []byte{byte(x)}
 	put(o.db, keyInt8, v)
 }
@@ -87,8 +87,8 @@ func (o *T) Int16() int16 {
 	return int16(binary.BigEndian.Uint16(v))
 }
 
-// SetInt16 stores x as the value of Int16.
-func (o *T) SetInt16(x int16) {
+// PutInt16 stores x as the value of Int16.
+func (o *T) PutInt16(x int16) {
 	v := make([]byte, 2)
 	binary.BigEndian.PutUint16(uint16(x))
 	put(o.db, keyInt16, v)
@@ -99,8 +99,8 @@ func (o *T) Int32() int32 {
 	return int32(binary.BigEndian.Uint32(v))
 }
 
-// SetInt32 stores x as the value of Int32.
-func (o *T) SetInt32(x int32) {
+// PutInt32 stores x as the value of Int32.
+func (o *T) PutInt32(x int32) {
 	v := make([]byte, 4)
 	binary.BigEndian.PutUint32(uint32(x))
 	put(o.db, keyInt32, v)
@@ -111,8 +111,8 @@ func (o *T) Int64() int64 {
 	return int64(binary.BigEndian.Uint64(v))
 }
 
-// SetInt64 stores x as the value of Int64.
-func (o *T) SetInt64(x int64) {
+// PutInt64 stores x as the value of Int64.
+func (o *T) PutInt64(x int64) {
 	v := make([]byte, 8)
 	binary.BigEndian.PutUint64(uint64(x))
 	put(o.db, keyInt64, v)

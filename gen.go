@@ -288,8 +288,26 @@ var tlib = template.Must(template.New("lib").Parse(`
 	return v
 {{- else if eq . "string" -}}
 	return string(v)
-{{- else -}}
+{{- else if eq . "bool" -}}
+	return v[0] != 0
+{{- else if or (eq . "byte") (eq . "uint8") -}}
+	return v[0]
+{{- else if eq . "uint16" -}}
+	return binary.BigEndian.Uint16(v)
+{{- else if eq . "uint32" -}}
+	return binary.BigEndian.Uint32(v)
+{{- else if eq . "uint64" -}}
+	return binary.BigEndian.Uint64(v)
+{{- else if eq . "int8" -}}
+	return int8(v[0])
+{{- else if eq . "int16" -}}
+	return int16(binary.BigEndian.Uint16(v))
+{{- else if eq . "int32" -}}
+	return int32(binary.BigEndian.Uint32(v))
+{{- else if eq . "int64" -}}
 	return int64(binary.BigEndian.Uint64(v))
+{{- else -}}
+	panic("internal error") {{- /* never generated */}}
 {{- end -}}
 {{end}}
 
@@ -298,9 +316,33 @@ var tlib = template.Must(template.New("lib").Parse(`
 	v := x
 {{- else if eq . "string" -}}
 	v := []byte(x)
-{{- else -}}
+{{- else if eq . "bool" -}}
+	v := make([]byte, 1)
+	if x { v[0] = 1 }
+{{- else if or (eq . "byte") (eq . "uint8") -}}
+	v := []byte{x}
+{{- else if eq . "uint16" -}}
+	v := make([]byte, 2)
+	binary.BigEndian.PutUint16(x)
+{{- else if eq . "uint32" -}}
+	v := make([]byte, 4)
+	binary.BigEndian.PutUint32(x)
+{{- else if eq . "uint64" -}}
+	v := make([]byte, 8)
+	binary.BigEndian.PutUint64(x)
+{{- else if eq . "int8" -}}
+	v := []byte{byte(x)}
+{{- else if eq . "int16" -}}
+	v := make([]byte, 2)
+	binary.BigEndian.PutUint16(uint16(x))
+{{- else if eq . "int32" -}}
+	v := make([]byte, 4)
+	binary.BigEndian.PutUint32(uint32(x))
+{{- else if eq . "int64" -}}
 	v := make([]byte, 8)
 	binary.BigEndian.PutUint64(uint64(x))
+{{- else -}}
+	panic("internal error") {{- /* never generated */}}
 {{- end -}}
 {{end}}
 `))

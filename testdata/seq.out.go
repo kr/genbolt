@@ -42,14 +42,17 @@ var (
 
 type db interface {
 	Writable() bool
-	CreateBucketIfNotExists([]byte) *bolt.Bucket
+	CreateBucketIfNotExists([]byte) (*bolt.Bucket, error)
 	Bucket([]byte) *bolt.Bucket
 }
 
 func bucket(db db, key []byte) *bolt.Bucket {
-	if db.Writable() {
-		return db.CreateBucketIfNotExists(key)
-	} else {
+	if !db.Writable() {
 		return db.Bucket(key)
 	}
+	b, err := db.CreateBucketIfNotExists(key)
+	if err != nil {
+		panic(err)
+	}
+	return b
 }

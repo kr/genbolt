@@ -4,6 +4,4 @@ package main
 // depend on bbolt, even though the generated code does.
 // This lets us express a version reqirement on bbolt
 // without it showing up as "indirect" in go.mod.
-import bolt "github.com/coreos/bbolt"
-
-const _ = bolt.MaxKeySize
+import _ "github.com/coreos/bbolt"

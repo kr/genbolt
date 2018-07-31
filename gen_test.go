@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -28,6 +29,44 @@ func TestGen(t *testing.T) {
 		if len(d) > 0 {
 			t.Errorf("gen(%q): %s", name, d)
 		}
+	}
+}
+
+func TestRun(t *testing.T) {
+	for _, name := range glob(t, "testdata/*.use.go") {
+		t.Run(name, func(t *testing.T) {
+			dir, err := ioutil.TempDir("", "gentest")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.RemoveAll(dir)
+
+			genName := strings.TrimSuffix(name, ".use.go") + ".out.go"
+			copyGo(t, genName, dir, "db.go")
+			copyGo(t, name, dir, "db_test.go")
+
+			c := exec.Command("go", "test")
+			c.Dir = dir
+			c.Stdout = os.Stdout
+			c.Stderr = os.Stderr
+			err = c.Run()
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func copyGo(t *testing.T, src, dir, dst string) {
+	b, err := ioutil.ReadFile(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := fmt.Sprintf("//line %s:1\n", src)
+	b = append([]byte(s), b...)
+	err = ioutil.WriteFile(filepath.Join(dir, dst), b, 0600)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 

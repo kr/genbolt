@@ -92,41 +92,17 @@ func genFile(w io.Writer, file *ast.File, pkg *types.Package, prog *loader.Progr
 
 			fmt.Fprintln(w)
 
+			isRoot, rootSuffix := false, ""
 			if s := spec.Name.Name; strings.HasPrefix(s, "Root") {
-				suf := s[4:]
-				if suf == "" || ast.IsExported(suf) {
-					templateRoot.Execute(w, rootInfo{
-						S: suf,
-						C: genDecl.Doc,
-					})
+				rootSuffix = s[4:]
+				isRoot = s == "Root" || ast.IsExported(rootSuffix)
+			}
 
-					for _, field := range structType.Fields.List {
-						for _, name := range field.Names {
-							if !name.IsExported() {
-								return fmt.Errorf("all fields must be exported")
-							}
-
-							keys[name.Name] = true
-							switch fieldType := field.Type.(type) {
-							case *ast.StarExpr:
-								typeName, ok := fieldType.X.(*ast.Ident)
-								if !ok {
-									return fmt.Errorf("cannot have pointer to non-struct type")
-								}
-								templatePointerField.Execute(w, fieldInfo{
-									B: spec.Name.Name,
-									F: name.Name,
-									T: typeName.Name,
-									C: field.Doc,
-								})
-								needBucket = true
-							default:
-								return fmt.Errorf("unsupported root field type %s", esprint(field.Type))
-							}
-						}
-					}
-					continue
-				}
+			if isRoot {
+				templateRoot.Execute(w, rootInfo{
+					S: rootSuffix,
+					C: genDecl.Doc,
+				})
 			}
 
 			if genDecl.Doc != nil {
@@ -135,7 +111,11 @@ func genFile(w io.Writer, file *ast.File, pkg *types.Package, prog *loader.Progr
 				}
 			}
 			fmt.Fprintln(w, "type", spec.Name, "struct {")
-			fmt.Fprintln(w, "\tdb *bolt.Bucket")
+			if isRoot {
+				fmt.Fprintln(w, "\tdb *bolt.Tx")
+			} else {
+				fmt.Fprintln(w, "\tdb *bolt.Bucket")
+			}
 			fmt.Fprintln(w, "}")
 
 			for _, field := range structType.Fields.List {
@@ -149,6 +129,9 @@ func genFile(w io.Writer, file *ast.File, pkg *types.Package, prog *loader.Progr
 					case *ast.Ident:
 						if !isBasic(scope, fieldType.Name) {
 							return fmt.Errorf("unsupported type %s (try *%s instead?)", fieldType.Name, fieldType.Name)
+						}
+						if isRoot {
+							return fmt.Errorf("unsupported root field type %s", esprint(field.Type))
 						}
 						templateField.Execute(w, fieldInfo{
 							B: spec.Name.Name,
@@ -429,15 +412,6 @@ var (
 `))
 
 var templateRoot = template.Must(template.Must(tlib.Clone()).Parse(`
-{{if .C.Text -}}
-{{range .C.List -}}
-{{.Text}}
-{{end -}}
-{{end -}}
-type Root{{.S}} struct {
-	db *bolt.Tx
-}
-
 // NewRoot{{.S}} returns a new Root{{.S}} for tx.
 {{if .C.Text -}}
 //

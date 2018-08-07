@@ -4,6 +4,7 @@ package db
 type Root struct {
 	// F, what a lovely field, F.
 	F *T
+	S []*T
 }
 
 // RootFoo is a root with a longer name.

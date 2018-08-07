@@ -9,11 +9,6 @@ import bolt "github.com/coreos/bbolt"
 const _ = binary.MaxVarintLen16
 const _ = bolt.MaxKeySize
 
-// Hello, this is the root.
-type Root struct {
-	db *bolt.Tx
-}
-
 // NewRoot returns a new Root for tx.
 //
 // Hello, this is the root.
@@ -33,14 +28,18 @@ func Update(db *bolt.DB, f func(*Root, *bolt.Tx) error) error {
 	})
 }
 
+// Hello, this is the root.
+type Root struct {
+	db *bolt.Tx
+}
+
 // F, what a lovely field, F.
 func (o *Root) F() *T {
 	return &T{bucket(o.db, keyF)}
 }
 
-// RootFoo is a root with a longer name.
-type RootFoo struct {
-	db *bolt.Tx
+func (o *Root) S() *TSeq {
+	return &TSeq{bucket(o.db, keyS)}
 }
 
 // NewRootFoo returns a new RootFoo for tx.
@@ -62,6 +61,11 @@ func UpdateFoo(db *bolt.DB, f func(*RootFoo, *bolt.Tx) error) error {
 	})
 }
 
+// RootFoo is a root with a longer name.
+type RootFoo struct {
+	db *bolt.Tx
+}
+
 func (o *RootFoo) F() *T {
 	return &T{bucket(o.db, keyF)}
 }
@@ -79,8 +83,27 @@ type T struct {
 	db *bolt.Bucket
 }
 
+type TSeq struct {
+	db *bolt.Bucket
+}
+
+func (o *TSeq) Get(n uint64) *T {
+	key := make([]byte, 8)
+	binary.BigEndian.PutUint64(key, n)
+	return &T{bucket(o.db, key)}
+}
+
+func (o *TSeq) Add() *T {
+	n, err := o.db.NextSequence()
+	if err != nil {
+		panic(err)
+	}
+	return o.Get(n)
+}
+
 var (
 	keyF = []byte("F")
+	keyS = []byte("S")
 )
 
 type db interface {

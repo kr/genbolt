@@ -13,12 +13,20 @@ type T struct {
 	db *bolt.Bucket
 }
 
+func (o *T) Bucket() *bolt.Bucket {
+	return o.db
+}
+
 func (o *T) S() *USeq {
 	return &USeq{bucket(o.db, keyS)}
 }
 
 type U struct {
 	db *bolt.Bucket
+}
+
+func (o *U) Bucket() *bolt.Bucket {
+	return o.db
 }
 
 type USeq struct {

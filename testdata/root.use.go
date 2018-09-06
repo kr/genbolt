@@ -9,7 +9,7 @@ import (
 func TestRoot(t *testing.T) {
 	db, err := bolt.Open("db", 0600, nil)
 	must(t, err)
-	must(t, View(db, func(root *Root, tx *bolt.Tx) error {
+	must(t, View(db, func(root *Root) error {
 		root.F()
 		return nil
 	}))

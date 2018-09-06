@@ -13,6 +13,10 @@ type T struct {
 	db *bolt.Bucket
 }
 
+func (o *T) Bucket() *bolt.Bucket {
+	return o.db
+}
+
 func (o *T) Bool() bool {
 	v := o.db.Get(keyBool)
 	return v[0] != 0

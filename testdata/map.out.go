@@ -13,12 +13,20 @@ type T struct {
 	db *bolt.Bucket
 }
 
+func (o *T) Bucket() *bolt.Bucket {
+	return o.db
+}
+
 func (o *T) M() *VMap {
 	return &VMap{bucket(o.db, keyM)}
 }
 
 type V struct {
 	db *bolt.Bucket
+}
+
+func (o *V) Bucket() *bolt.Bucket {
+	return o.db
 }
 
 type VMap struct {

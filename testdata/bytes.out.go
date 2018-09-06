@@ -14,6 +14,10 @@ type T struct {
 	db *bolt.Bucket
 }
 
+func (o *T) Bucket() *bolt.Bucket {
+	return o.db
+}
+
 // B is a byte slice.
 // It is useful.
 func (o *T) B() []byte {

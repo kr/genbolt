@@ -16,21 +16,25 @@ func NewRoot(tx *bolt.Tx) *Root {
 	return &Root{tx}
 }
 
-func View(db *bolt.DB, f func(*Root, *bolt.Tx) error) error {
+func View(db *bolt.DB, f func(*Root) error) error {
 	return db.View(func(tx *bolt.Tx) error {
-		return f(&Root{tx}, tx)
+		return f(&Root{tx})
 	})
 }
 
-func Update(db *bolt.DB, f func(*Root, *bolt.Tx) error) error {
+func Update(db *bolt.DB, f func(*Root) error) error {
 	return db.Update(func(tx *bolt.Tx) error {
-		return f(&Root{tx}, tx)
+		return f(&Root{tx})
 	})
 }
 
 // Hello, this is the root.
 type Root struct {
 	db *bolt.Tx
+}
+
+func (o *Root) Tx() *bolt.Tx {
+	return o.db
 }
 
 // F, what a lovely field, F.
@@ -49,21 +53,25 @@ func NewRootFoo(tx *bolt.Tx) *RootFoo {
 	return &RootFoo{tx}
 }
 
-func ViewFoo(db *bolt.DB, f func(*RootFoo, *bolt.Tx) error) error {
+func ViewFoo(db *bolt.DB, f func(*RootFoo) error) error {
 	return db.View(func(tx *bolt.Tx) error {
-		return f(&RootFoo{tx}, tx)
+		return f(&RootFoo{tx})
 	})
 }
 
-func UpdateFoo(db *bolt.DB, f func(*RootFoo, *bolt.Tx) error) error {
+func UpdateFoo(db *bolt.DB, f func(*RootFoo) error) error {
 	return db.Update(func(tx *bolt.Tx) error {
-		return f(&RootFoo{tx}, tx)
+		return f(&RootFoo{tx})
 	})
 }
 
 // RootFoo is a root with a longer name.
 type RootFoo struct {
 	db *bolt.Tx
+}
+
+func (o *RootFoo) Tx() *bolt.Tx {
+	return o.db
 }
 
 func (o *RootFoo) F() *T {
@@ -75,12 +83,20 @@ type Rootbar struct {
 	db *bolt.Bucket
 }
 
+func (o *Rootbar) Bucket() *bolt.Bucket {
+	return o.db
+}
+
 func (o *Rootbar) F() *T {
 	return &T{bucket(o.db, keyF)}
 }
 
 type T struct {
 	db *bolt.Bucket
+}
+
+func (o *T) Bucket() *bolt.Bucket {
+	return o.db
 }
 
 type TSeq struct {

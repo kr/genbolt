@@ -13,6 +13,10 @@ type T struct {
 	db *bolt.Bucket
 }
 
+func (o *T) Bucket() *bolt.Bucket {
+	return o.db
+}
+
 // U is a U.
 // It is useful.
 func (o *T) U() *U {
@@ -21,6 +25,10 @@ func (o *T) U() *U {
 
 type U struct {
 	db *bolt.Bucket
+}
+
+func (o *U) Bucket() *bolt.Bucket {
+	return o.db
 }
 
 var (

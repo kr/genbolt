@@ -117,11 +117,22 @@ func genFile(w io.Writer, file *ast.File, pkg *types.Package, prog *loader.Progr
 				fmt.Fprintln(w, "\tdb *bolt.Bucket")
 			}
 			fmt.Fprintln(w, "}")
+			fmt.Fprintln(w)
+			if isRoot {
+				fmt.Fprintln(w, "func (o *", spec.Name, ") Tx() *bolt.Tx {")
+			} else {
+				fmt.Fprintln(w, "func (o *", spec.Name, ") Bucket() *bolt.Bucket {")
+			}
+			fmt.Fprintln(w, "return o.db")
+			fmt.Fprintln(w, "}")
 
 			for _, field := range structType.Fields.List {
 				for _, name := range field.Names {
 					if !name.IsExported() {
 						return fmt.Errorf("all fields must be exported")
+					}
+					if isReserved(name) {
+						return fmt.Errorf("field name %s is reserved (sorry)", name.Name)
 					}
 					keys[name.Name] = true
 
@@ -262,6 +273,14 @@ func isBasic(scope *types.Scope, name string) bool {
 	}
 	_, ok := obj.Type().(*types.Basic)
 	return ok
+}
+
+func isReserved(name *ast.Ident) bool {
+	switch name.Name {
+	case "Tx", "Bucket":
+		return true
+	}
+	return false
 }
 
 var tlib = template.Must(template.New("lib").Parse(`
@@ -423,15 +442,15 @@ func NewRoot{{.S}}(tx *bolt.Tx) *Root{{.S}} {
 	return &Root{{.S}}{tx}
 }
 
-func View{{.S}}(db *bolt.DB, f func(*Root{{.S}}, *bolt.Tx) error) error {
+func View{{.S}}(db *bolt.DB, f func(*Root{{.S}}) error) error {
 	return db.View(func(tx *bolt.Tx) error {
-		return f(&Root{{.S}}{tx}, tx)
+		return f(&Root{{.S}}{tx})
 	})
 }
 
-func Update{{.S}}(db *bolt.DB, f func(*Root{{.S}}, *bolt.Tx) error) error {
+func Update{{.S}}(db *bolt.DB, f func(*Root{{.S}}) error) error {
 	return db.Update(func(tx *bolt.Tx) error {
-		return f(&Root{{.S}}{tx}, tx)
+		return f(&Root{{.S}}{tx})
 	})
 }
 `))

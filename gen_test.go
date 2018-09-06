@@ -44,8 +44,15 @@ func TestRun(t *testing.T) {
 			genName := strings.TrimSuffix(name, ".use.go") + ".out.go"
 			copyGo(t, genName, dir, "db.go")
 			copyGo(t, name, dir, "db_test.go")
+			c := exec.Command("go", "mod", "init", "github.com/kr/genbolt/"+name)
+			c.Dir = dir
+			out, err := c.CombinedOutput()
+			if err != nil {
+				t.Logf("%s", out)
+				t.Fatal(err)
+			}
 
-			c := exec.Command("go", "test")
+			c = exec.Command("go", "test")
 			c.Dir = dir
 			c.Stdout = os.Stdout
 			c.Stderr = os.Stderr

@@ -286,7 +286,9 @@ func isReserved(name *ast.Ident) bool {
 var tlib = template.Must(template.New("lib").Parse(`
 {{define "get"}}
 {{- if eq . "[]byte" -}}
-	return v
+	c := make([]byte, len(v))
+	copy(c, v)
+	return c
 {{- else if eq . "string" -}}
 	return string(v)
 {{- else if eq . "bool" -}}

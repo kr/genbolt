@@ -22,7 +22,9 @@ func (o *T) Bucket() *bolt.Bucket {
 // It is useful.
 func (o *T) B() []byte {
 	v := o.db.Get(keyB)
-	return v
+	c := make([]byte, len(v))
+	copy(c, v)
+	return c
 }
 
 // PutB stores x as the value of B.

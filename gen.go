@@ -412,12 +412,12 @@ func (o *{{.Type}}) Get(n uint64) *{{.Elem}} {
 	return &{{.Elem}}{bucket(o.db, key)}
 }
 
-func (o *{{.Type}}) Add() *{{.Elem}} {
+func (o *{{.Type}}) Add() (*{{.Elem}}, uint64) {
 	n, err := o.db.NextSequence()
 	if err != nil {
 		panic(err)
 	}
-	return o.Get(n)
+	return o.Get(n), n
 }
 {{end}}
 `))

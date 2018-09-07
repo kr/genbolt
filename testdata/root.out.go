@@ -109,12 +109,12 @@ func (o *TSeq) Get(n uint64) *T {
 	return &T{bucket(o.db, key)}
 }
 
-func (o *TSeq) Add() *T {
+func (o *TSeq) Add() (*T, uint64) {
 	n, err := o.db.NextSequence()
 	if err != nil {
 		panic(err)
 	}
-	return o.Get(n)
+	return o.Get(n), n
 }
 
 var (

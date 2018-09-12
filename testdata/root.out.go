@@ -103,6 +103,10 @@ type TSeq struct {
 	db *bolt.Bucket
 }
 
+func (o *TSeq) Bucket() *bolt.Bucket {
+	return o.db
+}
+
 func (o *TSeq) Get(n uint64) *T {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)

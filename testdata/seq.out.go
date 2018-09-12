@@ -33,6 +33,10 @@ type USeq struct {
 	db *bolt.Bucket
 }
 
+func (o *USeq) Bucket() *bolt.Bucket {
+	return o.db
+}
+
 func (o *USeq) Get(n uint64) *U {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)

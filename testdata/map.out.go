@@ -33,6 +33,10 @@ type VMap struct {
 	db *bolt.Bucket
 }
 
+func (o *VMap) Bucket() *bolt.Bucket {
+	return o.db
+}
+
 func (o *VMap) Get(key []byte) *V {
 	return &V{bucket(o.db, key)}
 }

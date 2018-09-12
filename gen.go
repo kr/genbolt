@@ -391,6 +391,10 @@ type {{.Type}} struct {
 	db *bolt.Bucket
 }
 
+func (o *{{.Type}}) Bucket() *bolt.Bucket {
+	return o.db
+}
+
 func (o *{{.Type}}) Get(key []byte) *{{.Elem}} {
 	return &{{.Elem}}{bucket(o.db, key)}
 }
@@ -406,6 +410,10 @@ var templateSeqType = template.Must(template.Must(tlib.Clone()).Parse(`
 {{range .}}
 type {{.Type}} struct {
 	db *bolt.Bucket
+}
+
+func (o *{{.Type}}) Bucket() *bolt.Bucket {
+	return o.db
 }
 
 func (o *{{.Type}}) Get(n uint64) *{{.Elem}} {

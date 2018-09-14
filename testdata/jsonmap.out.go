@@ -33,12 +33,12 @@ func (o *SampleJSONMap) Bucket() *bolt.Bucket {
 }
 
 func (o *SampleJSONMap) Get(key []byte) *sample.JSON {
-	v := o.db.Get(key)
-	if v == nil {
+	rec := o.db.Get(key)
+	if rec == nil {
 		return nil
 	}
 	var x json.Unmarshaler = new(sample.JSON)
-	err := json.Unmarshal(v, x)
+	err := json.Unmarshal(rec, x)
 	if err != nil {
 		panic(err)
 	}
@@ -50,11 +50,11 @@ func (o *SampleJSONMap) GetByString(key string) *sample.JSON {
 }
 
 func (o *SampleJSONMap) Put(key []byte, x *sample.JSON) {
-	v, err := json.Marshal(json.Marshaler(x))
+	rec, err := json.Marshal(json.Marshaler(x))
 	if err != nil {
 		panic(err)
 	}
-	put(o.db, key, v)
+	put(o.db, key, rec)
 }
 
 func (o *SampleJSONMap) PutByString(key string, x *sample.JSON) {

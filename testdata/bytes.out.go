@@ -21,9 +21,9 @@ func (o *T) Bucket() *bolt.Bucket {
 // B is a byte slice.
 // It is useful.
 func (o *T) B() []byte {
-	v := o.db.Get(keyB)
-	c := make([]byte, len(v))
-	copy(c, v)
+	rec := o.db.Get(keyB)
+	c := make([]byte, len(rec))
+	copy(c, rec)
 	return c
 }
 
@@ -32,8 +32,8 @@ func (o *T) B() []byte {
 // B is a byte slice.
 // It is useful.
 func (o *T) PutB(x []byte) {
-	v := x
-	put(o.db, keyB, v)
+	rec := x
+	put(o.db, keyB, rec)
 }
 
 var (

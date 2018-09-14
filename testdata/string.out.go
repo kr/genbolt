@@ -18,14 +18,14 @@ func (o *T) Bucket() *bolt.Bucket {
 }
 
 func (o *T) S() string {
-	v := o.db.Get(keyS)
-	return string(v)
+	rec := o.db.Get(keyS)
+	return string(rec)
 }
 
 // PutS stores x as the value of S.
 func (o *T) PutS(x string) {
-	v := []byte(x)
-	put(o.db, keyS, v)
+	rec := []byte(x)
+	put(o.db, keyS, rec)
 }
 
 var (

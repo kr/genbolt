@@ -21,12 +21,12 @@ func (o *T) Bucket() *bolt.Bucket {
 }
 
 func (o *T) J() *sample.JSON {
-	v := o.db.Get(keyJ)
-	if v == nil {
+	rec := o.db.Get(keyJ)
+	if rec == nil {
 		return nil
 	}
 	var x json.Unmarshaler = new(sample.JSON)
-	err := json.Unmarshal(v, x)
+	err := json.Unmarshal(rec, x)
 	if err != nil {
 		panic(err)
 	}
@@ -35,11 +35,11 @@ func (o *T) J() *sample.JSON {
 
 // PutJ stores x as the value of J.
 func (o *T) PutJ(x *sample.JSON) {
-	v, err := json.Marshal(json.Marshaler(x))
+	rec, err := json.Marshal(json.Marshaler(x))
 	if err != nil {
 		panic(err)
 	}
-	put(o.db, keyJ, v)
+	put(o.db, keyJ, rec)
 }
 
 var (

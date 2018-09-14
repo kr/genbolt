@@ -421,39 +421,39 @@ func isReserved(name *ast.Ident) bool {
 var tlib = template.Must(template.New("lib").Parse(`
 {{define "get"}}
 {{- if index .JSONTypes .Type -}}
-	if v == nil {
+	if rec == nil {
 		return nil
 	}
 	var x json.Unmarshaler = new({{.Type.Obj.Pkg.Name}}.{{.Type.Obj.Name}})
-	err := json.Unmarshal(v, x)
+	err := json.Unmarshal(rec, x)
 	if err != nil {
 		panic(err)
 	}
 	return x
 {{- else if eq .T "[]byte" -}}
-	c := make([]byte, len(v))
-	copy(c, v)
+	c := make([]byte, len(rec))
+	copy(c, rec)
 	return c
 {{- else if eq .T "string" -}}
-	return string(v)
+	return string(rec)
 {{- else if eq .T "bool" -}}
-	return v[0] != 0
+	return rec[0] != 0
 {{- else if or (eq .T "byte") (eq .T "uint8") -}}
-	return v[0]
+	return rec[0]
 {{- else if eq .T "uint16" -}}
-	return binary.BigEndian.Uint16(v)
+	return binary.BigEndian.Uint16(rec)
 {{- else if eq .T "uint32" -}}
-	return binary.BigEndian.Uint32(v)
+	return binary.BigEndian.Uint32(rec)
 {{- else if eq .T "uint64" -}}
-	return binary.BigEndian.Uint64(v)
+	return binary.BigEndian.Uint64(rec)
 {{- else if eq .T "int8" -}}
-	return int8(v[0])
+	return int8(rec[0])
 {{- else if eq .T "int16" -}}
-	return int16(binary.BigEndian.Uint16(v))
+	return int16(binary.BigEndian.Uint16(rec))
 {{- else if eq .T "int32" -}}
-	return int32(binary.BigEndian.Uint32(v))
+	return int32(binary.BigEndian.Uint32(rec))
 {{- else if eq .T "int64" -}}
-	return int64(binary.BigEndian.Uint64(v))
+	return int64(binary.BigEndian.Uint64(rec))
 {{- else -}}
 	panic("internal error") {{- /* never generated */}}
 {{- end -}}
@@ -461,39 +461,39 @@ var tlib = template.Must(template.New("lib").Parse(`
 
 {{define "put"}}
 {{- if index .JSONTypes .Type -}}
-	v, err := json.Marshal(json.Marshaler(x))
+	rec, err := json.Marshal(json.Marshaler(x))
 	if err != nil {
 		panic(err)
 	}
 {{- else if eq .T "[]byte" -}}
-	v := x
+	rec := x
 {{- else if eq .T "string" -}}
-	v := []byte(x)
+	rec := []byte(x)
 {{- else if eq .T "bool" -}}
-	v := make([]byte, 1)
-	if x { v[0] = 1 }
+	rec := make([]byte, 1)
+	if x { rec[0] = 1 }
 {{- else if or (eq .T "byte") (eq .T "uint8") -}}
-	v := []byte{x}
+	rec := []byte{x}
 {{- else if eq .T "uint16" -}}
-	v := make([]byte, 2)
-	binary.BigEndian.PutUint16(v, x)
+	rec := make([]byte, 2)
+	binary.BigEndian.PutUint16(rec, x)
 {{- else if eq .T "uint32" -}}
-	v := make([]byte, 4)
-	binary.BigEndian.PutUint32(v, x)
+	rec := make([]byte, 4)
+	binary.BigEndian.PutUint32(rec, x)
 {{- else if eq .T "uint64" -}}
-	v := make([]byte, 8)
-	binary.BigEndian.PutUint64(v, x)
+	rec := make([]byte, 8)
+	binary.BigEndian.PutUint64(rec, x)
 {{- else if eq .T "int8" -}}
-	v := []byte{byte(x)}
+	rec := []byte{byte(x)}
 {{- else if eq .T "int16" -}}
-	v := make([]byte, 2)
-	binary.BigEndian.PutUint16(v, uint16(x))
+	rec := make([]byte, 2)
+	binary.BigEndian.PutUint16(rec, uint16(x))
 {{- else if eq .T "int32" -}}
-	v := make([]byte, 4)
-	binary.BigEndian.PutUint32(v, uint32(x))
+	rec := make([]byte, 4)
+	binary.BigEndian.PutUint32(rec, uint32(x))
 {{- else if eq .T "int64" -}}
-	v := make([]byte, 8)
-	binary.BigEndian.PutUint64(v, uint64(x))
+	rec := make([]byte, 8)
+	binary.BigEndian.PutUint64(rec, uint64(x))
 {{- else -}}
 	panic("internal error") {{- /* never generated */}}
 {{- end -}}
@@ -507,7 +507,7 @@ var templateField = template.Must(template.Must(tlib.Clone()).Parse(`
 {{end -}}
 {{end -}}
 func (o *{{.B}}) {{.F}}() {{.T}} {
-	v := o.db.Get(key{{.F}})
+	rec := o.db.Get(key{{.F}})
 	{{template "get" .}}
 }
 
@@ -520,7 +520,7 @@ func (o *{{.B}}) {{.F}}() {{.T}} {
 {{end -}}
 func (o *{{.B}}) Put{{.F}}(x {{.T}}) {
 	{{template "put" .}}
-	put(o.db, key{{.F}}, v)
+	put(o.db, key{{.F}}, rec)
 }
 `))
 
@@ -567,7 +567,7 @@ func (o *{{.Type}}) Bucket() *bolt.Bucket {
 }
 
 func (o *{{.Type}}) Get(key []byte) *{{.Elem}} {
-	v := o.db.Get(key)
+	rec := o.db.Get(key)
 	{{template "get" .FieldInfo}}
 }
 
@@ -578,7 +578,7 @@ func (o *{{.Type}}) GetByString(key string) *{{.Elem}} {
 
 func (o *{{.Type}}) Put(key []byte, x *{{.Elem}}) {
 	{{template "put" .FieldInfo}}
-	put(o.db, key, v)
+	put(o.db, key, rec)
 }
 
 func (o *{{.Type}}) PutByString(key string, x *{{.Elem}}) {
@@ -627,7 +627,7 @@ func (o *{{.Type}}) Bucket() *bolt.Bucket {
 func (o *{{.Type}}) Get(n uint64) *{{.Elem}} {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)
-	v := o.db.Get(key)
+	rec := o.db.Get(key)
 	{{template "get" .FieldInfo}}
 }
 
@@ -649,7 +649,7 @@ func (o *{{.Type}}) Put(n uint64, x *{{.Elem}}) {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)
 	{{template "put" .FieldInfo}}
-	put(o.db, key, v)
+	put(o.db, key, rec)
 }
 {{end}}
 `))

@@ -35,12 +35,12 @@ func (o *SampleJSONSeq) Bucket() *bolt.Bucket {
 func (o *SampleJSONSeq) Get(n uint64) *sample.JSON {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)
-	v := o.db.Get(key)
-	if v == nil {
+	rec := o.db.Get(key)
+	if rec == nil {
 		return nil
 	}
 	var x json.Unmarshaler = new(sample.JSON)
-	err := json.Unmarshal(v, x)
+	err := json.Unmarshal(rec, x)
 	if err != nil {
 		panic(err)
 	}
@@ -64,11 +64,11 @@ func (o *SampleJSONSeq) Add(x *sample.JSON, np *uint64) {
 func (o *SampleJSONSeq) Put(n uint64, x *sample.JSON) {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)
-	v, err := json.Marshal(json.Marshaler(x))
+	rec, err := json.Marshal(json.Marshaler(x))
 	if err != nil {
 		panic(err)
 	}
-	put(o.db, key, v)
+	put(o.db, key, rec)
 }
 
 var (

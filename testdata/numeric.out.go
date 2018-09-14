@@ -18,111 +18,111 @@ func (o *T) Bucket() *bolt.Bucket {
 }
 
 func (o *T) Bool() bool {
-	v := o.db.Get(keyBool)
-	return v[0] != 0
+	rec := o.db.Get(keyBool)
+	return rec[0] != 0
 }
 
 // PutBool stores x as the value of Bool.
 func (o *T) PutBool(x bool) {
-	v := make([]byte, 1)
+	rec := make([]byte, 1)
 	if x {
-		v[0] = 1
+		rec[0] = 1
 	}
-	put(o.db, keyBool, v)
+	put(o.db, keyBool, rec)
 }
 
 func (o *T) Byte() byte {
-	v := o.db.Get(keyByte)
-	return v[0]
+	rec := o.db.Get(keyByte)
+	return rec[0]
 }
 
 // PutByte stores x as the value of Byte.
 func (o *T) PutByte(x byte) {
-	v := []byte{x}
-	put(o.db, keyByte, v)
+	rec := []byte{x}
+	put(o.db, keyByte, rec)
 }
 
 func (o *T) Uint16() uint16 {
-	v := o.db.Get(keyUint16)
-	return binary.BigEndian.Uint16(v)
+	rec := o.db.Get(keyUint16)
+	return binary.BigEndian.Uint16(rec)
 }
 
 // PutUint16 stores x as the value of Uint16.
 func (o *T) PutUint16(x uint16) {
-	v := make([]byte, 2)
-	binary.BigEndian.PutUint16(v, x)
-	put(o.db, keyUint16, v)
+	rec := make([]byte, 2)
+	binary.BigEndian.PutUint16(rec, x)
+	put(o.db, keyUint16, rec)
 }
 
 func (o *T) Uint32() uint32 {
-	v := o.db.Get(keyUint32)
-	return binary.BigEndian.Uint32(v)
+	rec := o.db.Get(keyUint32)
+	return binary.BigEndian.Uint32(rec)
 }
 
 // PutUint32 stores x as the value of Uint32.
 func (o *T) PutUint32(x uint32) {
-	v := make([]byte, 4)
-	binary.BigEndian.PutUint32(v, x)
-	put(o.db, keyUint32, v)
+	rec := make([]byte, 4)
+	binary.BigEndian.PutUint32(rec, x)
+	put(o.db, keyUint32, rec)
 }
 
 func (o *T) Uint64() uint64 {
-	v := o.db.Get(keyUint64)
-	return binary.BigEndian.Uint64(v)
+	rec := o.db.Get(keyUint64)
+	return binary.BigEndian.Uint64(rec)
 }
 
 // PutUint64 stores x as the value of Uint64.
 func (o *T) PutUint64(x uint64) {
-	v := make([]byte, 8)
-	binary.BigEndian.PutUint64(v, x)
-	put(o.db, keyUint64, v)
+	rec := make([]byte, 8)
+	binary.BigEndian.PutUint64(rec, x)
+	put(o.db, keyUint64, rec)
 }
 
 func (o *T) Int8() int8 {
-	v := o.db.Get(keyInt8)
-	return int8(v[0])
+	rec := o.db.Get(keyInt8)
+	return int8(rec[0])
 }
 
 // PutInt8 stores x as the value of Int8.
 func (o *T) PutInt8(x int8) {
-	v := []byte{byte(x)}
-	put(o.db, keyInt8, v)
+	rec := []byte{byte(x)}
+	put(o.db, keyInt8, rec)
 }
 
 func (o *T) Int16() int16 {
-	v := o.db.Get(keyInt16)
-	return int16(binary.BigEndian.Uint16(v))
+	rec := o.db.Get(keyInt16)
+	return int16(binary.BigEndian.Uint16(rec))
 }
 
 // PutInt16 stores x as the value of Int16.
 func (o *T) PutInt16(x int16) {
-	v := make([]byte, 2)
-	binary.BigEndian.PutUint16(v, uint16(x))
-	put(o.db, keyInt16, v)
+	rec := make([]byte, 2)
+	binary.BigEndian.PutUint16(rec, uint16(x))
+	put(o.db, keyInt16, rec)
 }
 
 func (o *T) Int32() int32 {
-	v := o.db.Get(keyInt32)
-	return int32(binary.BigEndian.Uint32(v))
+	rec := o.db.Get(keyInt32)
+	return int32(binary.BigEndian.Uint32(rec))
 }
 
 // PutInt32 stores x as the value of Int32.
 func (o *T) PutInt32(x int32) {
-	v := make([]byte, 4)
-	binary.BigEndian.PutUint32(v, uint32(x))
-	put(o.db, keyInt32, v)
+	rec := make([]byte, 4)
+	binary.BigEndian.PutUint32(rec, uint32(x))
+	put(o.db, keyInt32, rec)
 }
 
 func (o *T) Int64() int64 {
-	v := o.db.Get(keyInt64)
-	return int64(binary.BigEndian.Uint64(v))
+	rec := o.db.Get(keyInt64)
+	return int64(binary.BigEndian.Uint64(rec))
 }
 
 // PutInt64 stores x as the value of Int64.
 func (o *T) PutInt64(x int64) {
-	v := make([]byte, 8)
-	binary.BigEndian.PutUint64(v, uint64(x))
-	put(o.db, keyInt64, v)
+	rec := make([]byte, 8)
+	binary.BigEndian.PutUint64(rec, uint64(x))
+	put(o.db, keyInt64, rec)
 }
 
 var (

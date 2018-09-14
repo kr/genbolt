@@ -37,28 +37,28 @@ func (o *SampleJSONMap) Get(key []byte) *sample.JSON {
 	if rec == nil {
 		return nil
 	}
-	var x json.Unmarshaler = new(sample.JSON)
-	err := json.Unmarshal(rec, x)
+	var v json.Unmarshaler = new(sample.JSON)
+	err := json.Unmarshal(rec, v)
 	if err != nil {
 		panic(err)
 	}
-	return x
+	return v
 }
 
 func (o *SampleJSONMap) GetByString(key string) *sample.JSON {
 	return o.Get([]byte(key))
 }
 
-func (o *SampleJSONMap) Put(key []byte, x *sample.JSON) {
-	rec, err := json.Marshal(json.Marshaler(x))
+func (o *SampleJSONMap) Put(key []byte, v *sample.JSON) {
+	rec, err := json.Marshal(json.Marshaler(v))
 	if err != nil {
 		panic(err)
 	}
 	put(o.db, key, rec)
 }
 
-func (o *SampleJSONMap) PutByString(key string, x *sample.JSON) {
-	o.Put([]byte(key), x)
+func (o *SampleJSONMap) PutByString(key string, v *sample.JSON) {
+	o.Put([]byte(key), v)
 }
 
 var (

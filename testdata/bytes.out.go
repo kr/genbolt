@@ -22,17 +22,17 @@ func (o *T) Bucket() *bolt.Bucket {
 // It is useful.
 func (o *T) B() []byte {
 	rec := o.db.Get(keyB)
-	c := make([]byte, len(rec))
-	copy(c, rec)
-	return c
+	v := make([]byte, len(rec))
+	copy(v, rec)
+	return v
 }
 
-// PutB stores x as the value of B.
+// PutB stores v as the value of B.
 //
 // B is a byte slice.
 // It is useful.
-func (o *T) PutB(x []byte) {
-	rec := x
+func (o *T) PutB(v []byte) {
+	rec := v
 	put(o.db, keyB, rec)
 }
 

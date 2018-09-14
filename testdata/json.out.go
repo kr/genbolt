@@ -25,17 +25,17 @@ func (o *T) J() *sample.JSON {
 	if rec == nil {
 		return nil
 	}
-	var x json.Unmarshaler = new(sample.JSON)
-	err := json.Unmarshal(rec, x)
+	var v json.Unmarshaler = new(sample.JSON)
+	err := json.Unmarshal(rec, v)
 	if err != nil {
 		panic(err)
 	}
-	return x
+	return v
 }
 
-// PutJ stores x as the value of J.
-func (o *T) PutJ(x *sample.JSON) {
-	rec, err := json.Marshal(json.Marshaler(x))
+// PutJ stores v as the value of J.
+func (o *T) PutJ(v *sample.JSON) {
+	rec, err := json.Marshal(json.Marshaler(v))
 	if err != nil {
 		panic(err)
 	}

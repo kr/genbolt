@@ -39,32 +39,32 @@ func (o *SampleJSONSeq) Get(n uint64) *sample.JSON {
 	if rec == nil {
 		return nil
 	}
-	var x json.Unmarshaler = new(sample.JSON)
-	err := json.Unmarshal(rec, x)
+	var v json.Unmarshaler = new(sample.JSON)
+	err := json.Unmarshal(rec, v)
 	if err != nil {
 		panic(err)
 	}
-	return x
+	return v
 }
 
-// Add adds x to the sequence.
+// Add adds v to the sequence.
 // It writes the new sequence number to *np
-// before marshaling x. Thus, it is okay for
-// np to point to a field inside x, to store
+// before marshaling v. Thus, it is okay for
+// np to point to a field inside v, to store
 // the sequence number in the new record.
-func (o *SampleJSONSeq) Add(x *sample.JSON, np *uint64) {
+func (o *SampleJSONSeq) Add(v *sample.JSON, np *uint64) {
 	n, err := o.db.NextSequence()
 	if err != nil {
 		panic(err)
 	}
 	*np = n
-	o.Put(n, x)
+	o.Put(n, v)
 }
 
-func (o *SampleJSONSeq) Put(n uint64, x *sample.JSON) {
+func (o *SampleJSONSeq) Put(n uint64, v *sample.JSON) {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)
-	rec, err := json.Marshal(json.Marshaler(x))
+	rec, err := json.Marshal(json.Marshaler(v))
 	if err != nil {
 		panic(err)
 	}

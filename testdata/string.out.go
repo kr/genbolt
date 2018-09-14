@@ -22,9 +22,9 @@ func (o *T) S() string {
 	return string(rec)
 }
 
-// PutS stores x as the value of S.
-func (o *T) PutS(x string) {
-	rec := []byte(x)
+// PutS stores v as the value of S.
+func (o *T) PutS(v string) {
+	rec := []byte(v)
 	put(o.db, keyS, rec)
 }
 

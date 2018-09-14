@@ -424,16 +424,16 @@ var tlib = template.Must(template.New("lib").Parse(`
 	if rec == nil {
 		return nil
 	}
-	var x json.Unmarshaler = new({{.Type.Obj.Pkg.Name}}.{{.Type.Obj.Name}})
-	err := json.Unmarshal(rec, x)
+	var v json.Unmarshaler = new({{.Type.Obj.Pkg.Name}}.{{.Type.Obj.Name}})
+	err := json.Unmarshal(rec, v)
 	if err != nil {
 		panic(err)
 	}
-	return x
+	return v
 {{- else if eq .T "[]byte" -}}
-	c := make([]byte, len(rec))
-	copy(c, rec)
-	return c
+	v := make([]byte, len(rec))
+	copy(v, rec)
+	return v
 {{- else if eq .T "string" -}}
 	return string(rec)
 {{- else if eq .T "bool" -}}
@@ -461,39 +461,39 @@ var tlib = template.Must(template.New("lib").Parse(`
 
 {{define "put"}}
 {{- if index .JSONTypes .Type -}}
-	rec, err := json.Marshal(json.Marshaler(x))
+	rec, err := json.Marshal(json.Marshaler(v))
 	if err != nil {
 		panic(err)
 	}
 {{- else if eq .T "[]byte" -}}
-	rec := x
+	rec := v
 {{- else if eq .T "string" -}}
-	rec := []byte(x)
+	rec := []byte(v)
 {{- else if eq .T "bool" -}}
 	rec := make([]byte, 1)
-	if x { rec[0] = 1 }
+	if v { rec[0] = 1 }
 {{- else if or (eq .T "byte") (eq .T "uint8") -}}
-	rec := []byte{x}
+	rec := []byte{v}
 {{- else if eq .T "uint16" -}}
 	rec := make([]byte, 2)
-	binary.BigEndian.PutUint16(rec, x)
+	binary.BigEndian.PutUint16(rec, v)
 {{- else if eq .T "uint32" -}}
 	rec := make([]byte, 4)
-	binary.BigEndian.PutUint32(rec, x)
+	binary.BigEndian.PutUint32(rec, v)
 {{- else if eq .T "uint64" -}}
 	rec := make([]byte, 8)
-	binary.BigEndian.PutUint64(rec, x)
+	binary.BigEndian.PutUint64(rec, v)
 {{- else if eq .T "int8" -}}
-	rec := []byte{byte(x)}
+	rec := []byte{byte(v)}
 {{- else if eq .T "int16" -}}
 	rec := make([]byte, 2)
-	binary.BigEndian.PutUint16(rec, uint16(x))
+	binary.BigEndian.PutUint16(rec, uint16(v))
 {{- else if eq .T "int32" -}}
 	rec := make([]byte, 4)
-	binary.BigEndian.PutUint32(rec, uint32(x))
+	binary.BigEndian.PutUint32(rec, uint32(v))
 {{- else if eq .T "int64" -}}
 	rec := make([]byte, 8)
-	binary.BigEndian.PutUint64(rec, uint64(x))
+	binary.BigEndian.PutUint64(rec, uint64(v))
 {{- else -}}
 	panic("internal error") {{- /* never generated */}}
 {{- end -}}
@@ -511,14 +511,14 @@ func (o *{{.B}}) {{.F}}() {{.T}} {
 	{{template "get" .}}
 }
 
-// Put{{.F}} stores x as the value of {{.F}}.
+// Put{{.F}} stores v as the value of {{.F}}.
 {{if .C.Text -}}
 //
 {{range .C.List -}}
 {{.Text}}
 {{end -}}
 {{end -}}
-func (o *{{.B}}) Put{{.F}}(x {{.T}}) {
+func (o *{{.B}}) Put{{.F}}(v {{.T}}) {
 	{{template "put" .}}
 	put(o.db, key{{.F}}, rec)
 }
@@ -576,14 +576,14 @@ func (o *{{.Type}}) GetByString(key string) *{{.Elem}} {
 	return o.Get([]byte(key))
 }
 
-func (o *{{.Type}}) Put(key []byte, x *{{.Elem}}) {
+func (o *{{.Type}}) Put(key []byte, v *{{.Elem}}) {
 	{{template "put" .FieldInfo}}
 	put(o.db, key, rec)
 }
 
-func (o *{{.Type}}) PutByString(key string, x *{{.Elem}}) {
+func (o *{{.Type}}) PutByString(key string, v *{{.Elem}}) {
 	{{/* TODO(kr): consider unsafe conversion */ -}}
-	o.Put([]byte(key), x)
+	o.Put([]byte(key), v)
 }
 {{end}}
 `))
@@ -631,21 +631,21 @@ func (o *{{.Type}}) Get(n uint64) *{{.Elem}} {
 	{{template "get" .FieldInfo}}
 }
 
-// Add adds x to the sequence.
+// Add adds v to the sequence.
 // It writes the new sequence number to *np
-// before marshaling x. Thus, it is okay for
-// np to point to a field inside x, to store
+// before marshaling v. Thus, it is okay for
+// np to point to a field inside v, to store
 // the sequence number in the new record.
-func (o *{{.Type}}) Add(x *{{.Elem}}, np *uint64) {
+func (o *{{.Type}}) Add(v *{{.Elem}}, np *uint64) {
 	n, err := o.db.NextSequence()
 	if err != nil {
 		panic(err)
 	}
 	*np = n
-	o.Put(n, x)
+	o.Put(n, v)
 }
 
-func (o *{{.Type}}) Put(n uint64, x *{{.Elem}}) {
+func (o *{{.Type}}) Put(n uint64, v *{{.Elem}}) {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)
 	{{template "put" .FieldInfo}}

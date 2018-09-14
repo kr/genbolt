@@ -421,6 +421,9 @@ func isReserved(name *ast.Ident) bool {
 var tlib = template.Must(template.New("lib").Parse(`
 {{define "get"}}
 {{- if index .JSONTypes .Type -}}
+	if v == nil {
+		return nil
+	}
 	var x json.Unmarshaler = new({{.Type.Obj.Pkg.Name}}.{{.Type.Obj.Name}})
 	err := json.Unmarshal(v, x)
 	if err != nil {

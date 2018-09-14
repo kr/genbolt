@@ -34,6 +34,9 @@ func (o *SampleJSONMap) Bucket() *bolt.Bucket {
 
 func (o *SampleJSONMap) Get(key []byte) *sample.JSON {
 	v := o.db.Get(key)
+	if v == nil {
+		return nil
+	}
 	var x json.Unmarshaler = new(sample.JSON)
 	err := json.Unmarshal(v, x)
 	if err != nil {

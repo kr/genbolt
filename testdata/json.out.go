@@ -22,6 +22,9 @@ func (o *T) Bucket() *bolt.Bucket {
 
 func (o *T) J() *sample.JSON {
 	v := o.db.Get(keyJ)
+	if v == nil {
+		return nil
+	}
 	var x json.Unmarshaler = new(sample.JSON)
 	err := json.Unmarshal(v, x)
 	if err != nil {

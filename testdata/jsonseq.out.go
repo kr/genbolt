@@ -36,6 +36,9 @@ func (o *SampleJSONSeq) Get(n uint64) *sample.JSON {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)
 	v := o.db.Get(key)
+	if v == nil {
+		return nil
+	}
 	var x json.Unmarshaler = new(sample.JSON)
 	err := json.Unmarshal(v, x)
 	if err != nil {

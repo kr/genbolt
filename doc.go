@@ -35,8 +35,23 @@ Type User is a bucket representing a single user.
 Field Config leads to the single Config bucket,
 holding a single number.
 
+Named types from other packages can be used,
+provided they're accompanied by
+a variable declaration in the schema
+asserting that they satisfy the interface json.Marshaler.
+Such types must also satisfy json.Unmarshaler,
+but this does not need to appear in the schema.
+
+	var _ json.Marshaler = (*mypkg.MyType)(nil)
+
+	type MyBucket struct {
+		MyField *mypkg.MyType
+		MySeq   []*mypkg.MyType
+		MyMap   map[string]*mypkg.MyType
+	}
+
 It is conventional to put a +build ignore directive
-in this file, so it can live in the same directory
+in the schema file, so it can live in the same directory
 as the generated code without its symbols conflicting.
 
 */

@@ -424,8 +424,8 @@ var tlib = template.Must(template.New("lib").Parse(`
 	if rec == nil {
 		return nil
 	}
-	var v json.Unmarshaler = new({{.Type.Obj.Pkg.Name}}.{{.Type.Obj.Name}})
-	err := json.Unmarshal(rec, v)
+	v := new({{.Type.Obj.Pkg.Name}}.{{.Type.Obj.Name}})
+	err := json.Unmarshal(rec, json.Unmarshaler(v))
 	if err != nil {
 		panic(err)
 	}

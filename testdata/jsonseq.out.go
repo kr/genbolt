@@ -39,8 +39,8 @@ func (o *SampleJSONSeq) Get(n uint64) *sample.JSON {
 	if rec == nil {
 		return nil
 	}
-	var v json.Unmarshaler = new(sample.JSON)
-	err := json.Unmarshal(rec, v)
+	v := new(sample.JSON)
+	err := json.Unmarshal(rec, json.Unmarshaler(v))
 	if err != nil {
 		panic(err)
 	}

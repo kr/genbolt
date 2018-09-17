@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestGen(t *testing.T) {
@@ -33,6 +34,8 @@ func TestGen(t *testing.T) {
 }
 
 func TestRun(t *testing.T) {
+	wd, err := os.Getwd()
+	must(t, err)
 	for _, name := range glob(t, "testdata/*.use.go") {
 		t.Run(name, func(t *testing.T) {
 			dir, err := ioutil.TempDir("", "gentest")
@@ -44,23 +47,32 @@ func TestRun(t *testing.T) {
 			genName := strings.TrimSuffix(name, ".use.go") + ".out.go"
 			copyGo(t, genName, dir, "db.go")
 			copyGo(t, name, dir, "db_test.go")
-			c := exec.Command("go", "mod", "init", "github.com/kr/genbolt/"+name)
-			c.Dir = dir
-			out, err := c.CombinedOutput()
-			if err != nil {
-				t.Logf("%s", out)
-				t.Fatal(err)
-			}
+			mod, err := os.Create(filepath.Join(dir, "go.mod"))
+			must(t, err)
+			_, err = fmt.Fprintln(mod, "module github.com/kr/genbolt/gen/"+strings.TrimPrefix(name, "testdata/"))
+			must(t, err)
+			_, err = fmt.Fprintln(mod, "require github.com/kr/genbolt v0.0.0")
+			must(t, err)
+			_, err = fmt.Fprintln(mod, "replace github.com/kr/genbolt => "+wd)
+			must(t, err)
+			must(t, mod.Close())
 
-			c = exec.Command("go", "test")
+			c := exec.Command("go", "test")
 			c.Dir = dir
 			c.Stdout = os.Stdout
 			c.Stderr = os.Stderr
 			err = c.Run()
 			if err != nil {
+				time.Sleep(time.Hour)
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func must(t *testing.T, err error) {
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 

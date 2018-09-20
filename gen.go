@@ -124,12 +124,14 @@ func genFile(w io.Writer, file *ast.File, pi *loader.PackageInfo, prog *loader.P
 	if len(jsonTypes) > 0 {
 		fmt.Fprintln(w, `import json "encoding/json"`)
 	}
-	seenNames := make(map[string]bool)
+	seenNames := make(map[string]string) // name -> import path
 	for _, pkg := range userImports {
-		if seenNames[pkg.Name()] {
-			return fmt.Errorf("duplicate package name %s", pkg.Name())
+		if p := seenNames[pkg.Name()]; p != "" && p != pkg.Path() {
+			return fmt.Errorf("duplicate package name %s from import paths %s and %s", pkg.Name(), pkg.Path(), p)
+		} else if p != "" {
+			continue
 		}
-		seenNames[pkg.Name()] = true
+		seenNames[pkg.Name()] = pkg.Path()
 		// TODO(kr): use package label from input file (also gives uniqueness)
 		fmt.Fprintf(w, "import %s %q\n", pkg.Name(), pkg.Path())
 	}

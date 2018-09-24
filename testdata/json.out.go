@@ -21,10 +21,10 @@ func (o *T) Bucket() *bolt.Bucket {
 
 func (o *T) J() *sample.JSON {
 	rec := get(o.db, keyJ)
-	if rec == nil {
-		return nil
-	}
 	v := new(sample.JSON)
+	if rec == nil {
+		return v
+	}
 	err := json.Unmarshal(rec, json.Unmarshaler(v))
 	if err != nil {
 		panic(err)

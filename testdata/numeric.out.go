@@ -19,7 +19,7 @@ func (o *T) Bucket() *bolt.Bucket {
 
 func (o *T) Bool() bool {
 	rec := get(o.db, keyBool)
-	return rec[0] != 0
+	return len(rec) > 0 && rec[0] != 0
 }
 
 // PutBool stores v as the value of Bool.
@@ -33,6 +33,9 @@ func (o *T) PutBool(v bool) {
 
 func (o *T) Byte() byte {
 	rec := get(o.db, keyByte)
+	if rec == nil {
+		return 0
+	}
 	return rec[0]
 }
 
@@ -44,6 +47,9 @@ func (o *T) PutByte(v byte) {
 
 func (o *T) Uint16() uint16 {
 	rec := get(o.db, keyUint16)
+	if rec == nil {
+		return 0
+	}
 	return binary.BigEndian.Uint16(rec)
 }
 
@@ -56,6 +62,9 @@ func (o *T) PutUint16(v uint16) {
 
 func (o *T) Uint32() uint32 {
 	rec := get(o.db, keyUint32)
+	if rec == nil {
+		return 0
+	}
 	return binary.BigEndian.Uint32(rec)
 }
 
@@ -68,6 +77,9 @@ func (o *T) PutUint32(v uint32) {
 
 func (o *T) Uint64() uint64 {
 	rec := get(o.db, keyUint64)
+	if rec == nil {
+		return 0
+	}
 	return binary.BigEndian.Uint64(rec)
 }
 
@@ -80,6 +92,9 @@ func (o *T) PutUint64(v uint64) {
 
 func (o *T) Int8() int8 {
 	rec := get(o.db, keyInt8)
+	if rec == nil {
+		return 0
+	}
 	return int8(rec[0])
 }
 
@@ -91,6 +106,9 @@ func (o *T) PutInt8(v int8) {
 
 func (o *T) Int16() int16 {
 	rec := get(o.db, keyInt16)
+	if rec == nil {
+		return 0
+	}
 	return int16(binary.BigEndian.Uint16(rec))
 }
 
@@ -103,6 +121,9 @@ func (o *T) PutInt16(v int16) {
 
 func (o *T) Int32() int32 {
 	rec := get(o.db, keyInt32)
+	if rec == nil {
+		return 0
+	}
 	return int32(binary.BigEndian.Uint32(rec))
 }
 
@@ -115,6 +136,9 @@ func (o *T) PutInt32(v int32) {
 
 func (o *T) Int64() int64 {
 	rec := get(o.db, keyInt64)
+	if rec == nil {
+		return 0
+	}
 	return int64(binary.BigEndian.Uint64(rec))
 }
 

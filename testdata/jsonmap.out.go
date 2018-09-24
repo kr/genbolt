@@ -33,10 +33,10 @@ func (o *SampleJSONMap) Bucket() *bolt.Bucket {
 
 func (o *SampleJSONMap) Get(key []byte) *sample.JSON {
 	rec := get(o.db, key)
-	if rec == nil {
-		return nil
-	}
 	v := new(sample.JSON)
+	if rec == nil {
+		return v
+	}
 	err := json.Unmarshal(rec, json.Unmarshaler(v))
 	if err != nil {
 		panic(err)

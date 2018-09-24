@@ -3,10 +3,10 @@ package main
 const schemaTemplate = `
 {{define "get"}}{{/* arg: *types.Pointer or string */}}
 {{- if isjsontype . -}}
-	if rec == nil {
-		return nil
-	}
 	v := new({{typestring .Elem}})
+	if rec == nil {
+		return v
+	}
 	err := json.Unmarshal(rec, json.Unmarshaler(v))
 	if err != nil {
 		panic(err)
@@ -19,22 +19,46 @@ const schemaTemplate = `
 {{- else if eq . "string" -}}
 	return string(rec)
 {{- else if eq . "bool" -}}
-	return rec[0] != 0
+	return len(rec) > 0 && rec[0] != 0
 {{- else if or (eq . "byte") (eq . "uint8") -}}
+	if rec == nil {
+		return 0
+	}
 	return rec[0]
 {{- else if eq . "uint16" -}}
+	if rec == nil {
+		return 0
+	}
 	return binary.BigEndian.Uint16(rec)
 {{- else if eq . "uint32" -}}
+	if rec == nil {
+		return 0
+	}
 	return binary.BigEndian.Uint32(rec)
 {{- else if eq . "uint64" -}}
+	if rec == nil {
+		return 0
+	}
 	return binary.BigEndian.Uint64(rec)
 {{- else if eq . "int8" -}}
+	if rec == nil {
+		return 0
+	}
 	return int8(rec[0])
 {{- else if eq . "int16" -}}
+	if rec == nil {
+		return 0
+	}
 	return int16(binary.BigEndian.Uint16(rec))
 {{- else if eq . "int32" -}}
+	if rec == nil {
+		return 0
+	}
 	return int32(binary.BigEndian.Uint32(rec))
 {{- else if eq . "int64" -}}
+	if rec == nil {
+		return 0
+	}
 	return int64(binary.BigEndian.Uint64(rec))
 {{- else -}}
 	panic("internal error") {{- /* never generated */}}

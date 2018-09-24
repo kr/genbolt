@@ -18,7 +18,7 @@ func (o *T) Bucket() *bolt.Bucket {
 }
 
 func (o *T) S() string {
-	rec := o.db.Get(keyS)
+	rec := get(o.db, keyS)
 	return string(rec)
 }
 
@@ -31,6 +31,13 @@ func (o *T) PutS(v string) {
 var (
 	keyS = []byte("S")
 )
+
+func get(b *bolt.Bucket, key []byte) []byte {
+	if b == nil {
+		return nil
+	}
+	return b.Get(key)
+}
 
 func put(b *bolt.Bucket, key, value []byte) {
 	err := b.Put(key, value)

@@ -18,7 +18,7 @@ func (o *T) Bucket() *bolt.Bucket {
 }
 
 func (o *T) Bool() bool {
-	rec := o.db.Get(keyBool)
+	rec := get(o.db, keyBool)
 	return rec[0] != 0
 }
 
@@ -32,7 +32,7 @@ func (o *T) PutBool(v bool) {
 }
 
 func (o *T) Byte() byte {
-	rec := o.db.Get(keyByte)
+	rec := get(o.db, keyByte)
 	return rec[0]
 }
 
@@ -43,7 +43,7 @@ func (o *T) PutByte(v byte) {
 }
 
 func (o *T) Uint16() uint16 {
-	rec := o.db.Get(keyUint16)
+	rec := get(o.db, keyUint16)
 	return binary.BigEndian.Uint16(rec)
 }
 
@@ -55,7 +55,7 @@ func (o *T) PutUint16(v uint16) {
 }
 
 func (o *T) Uint32() uint32 {
-	rec := o.db.Get(keyUint32)
+	rec := get(o.db, keyUint32)
 	return binary.BigEndian.Uint32(rec)
 }
 
@@ -67,7 +67,7 @@ func (o *T) PutUint32(v uint32) {
 }
 
 func (o *T) Uint64() uint64 {
-	rec := o.db.Get(keyUint64)
+	rec := get(o.db, keyUint64)
 	return binary.BigEndian.Uint64(rec)
 }
 
@@ -79,7 +79,7 @@ func (o *T) PutUint64(v uint64) {
 }
 
 func (o *T) Int8() int8 {
-	rec := o.db.Get(keyInt8)
+	rec := get(o.db, keyInt8)
 	return int8(rec[0])
 }
 
@@ -90,7 +90,7 @@ func (o *T) PutInt8(v int8) {
 }
 
 func (o *T) Int16() int16 {
-	rec := o.db.Get(keyInt16)
+	rec := get(o.db, keyInt16)
 	return int16(binary.BigEndian.Uint16(rec))
 }
 
@@ -102,7 +102,7 @@ func (o *T) PutInt16(v int16) {
 }
 
 func (o *T) Int32() int32 {
-	rec := o.db.Get(keyInt32)
+	rec := get(o.db, keyInt32)
 	return int32(binary.BigEndian.Uint32(rec))
 }
 
@@ -114,7 +114,7 @@ func (o *T) PutInt32(v int32) {
 }
 
 func (o *T) Int64() int64 {
-	rec := o.db.Get(keyInt64)
+	rec := get(o.db, keyInt64)
 	return int64(binary.BigEndian.Uint64(rec))
 }
 
@@ -136,6 +136,13 @@ var (
 	keyUint32 = []byte("Uint32")
 	keyUint64 = []byte("Uint64")
 )
+
+func get(b *bolt.Bucket, key []byte) []byte {
+	if b == nil {
+		return nil
+	}
+	return b.Get(key)
+}
 
 func put(b *bolt.Bucket, key, value []byte) {
 	err := b.Put(key, value)

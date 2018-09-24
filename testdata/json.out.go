@@ -20,7 +20,7 @@ func (o *T) Bucket() *bolt.Bucket {
 }
 
 func (o *T) J() *sample.JSON {
-	rec := o.db.Get(keyJ)
+	rec := get(o.db, keyJ)
 	if rec == nil {
 		return nil
 	}
@@ -44,6 +44,13 @@ func (o *T) PutJ(v *sample.JSON) {
 var (
 	keyJ = []byte("J")
 )
+
+func get(b *bolt.Bucket, key []byte) []byte {
+	if b == nil {
+		return nil
+	}
+	return b.Get(key)
+}
 
 func put(b *bolt.Bucket, key, value []byte) {
 	err := b.Put(key, value)

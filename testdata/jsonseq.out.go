@@ -34,7 +34,7 @@ func (o *SampleJSONSeq) Bucket() *bolt.Bucket {
 func (o *SampleJSONSeq) Get(n uint64) *sample.JSON {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)
-	rec := o.db.Get(key)
+	rec := get(o.db, key)
 	if rec == nil {
 		return nil
 	}
@@ -89,6 +89,13 @@ func bucket(db db, key []byte) *bolt.Bucket {
 		panic(err)
 	}
 	return b
+}
+
+func get(b *bolt.Bucket, key []byte) []byte {
+	if b == nil {
+		return nil
+	}
+	return b.Get(key)
 }
 
 func put(b *bolt.Bucket, key, value []byte) {

@@ -153,7 +153,7 @@ func (o *{{.Bucket}}) {{.Name}}() *{{typestring .Type}} {
 {{end -}}
 {{end -}}
 func (o *{{.Bucket}}) {{.Name}}() {{typestring .Type}} {
-	rec := o.db.Get(key{{.Name}})
+	rec := get(o.db, key{{.Name}})
 	{{template "get" .Type}}
 }
 
@@ -223,7 +223,7 @@ func (o *{{$type}}) Bucket() *bolt.Bucket {
 }
 
 func (o *{{$type}}) Get(key []byte) {{typestring $elem}} {
-	rec := o.db.Get(key)
+	rec := get(o.db, key)
 	{{template "get" $elem}}
 }
 
@@ -255,7 +255,7 @@ func (o *{{$type}}) Bucket() *bolt.Bucket {
 func (o *{{$type}}) Get(n uint64) {{typestring $elem}} {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)
-	rec := o.db.Get(key)
+	rec := get(o.db, key)
 	{{template "get" $elem}}
 }
 
@@ -307,6 +307,13 @@ func bucket(db db, key []byte) *bolt.Bucket {
 {{end}}
 
 {{if or .RecordFields .JSONMapTypes .JSONSeqTypes}}
+func get(b *bolt.Bucket, key []byte) []byte {
+	if b == nil {
+		return nil
+	}
+	return b.Get(key)
+}
+
 func put(b *bolt.Bucket, key, value []byte) {
 	err := b.Put(key, value)
 	if err != nil {

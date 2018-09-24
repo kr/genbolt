@@ -2,10 +2,10 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/format"
-	"go/parser"
 	"go/printer"
 	"go/token"
 	"go/types"
@@ -14,63 +14,62 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"golang.org/x/tools/go/loader"
+	"golang.org/x/tools/go/packages"
 )
 
-var prog *loader.Program
+var fset = new(token.FileSet)
 
 func gen(name string) (code []byte, err error) {
-	cfg := loader.Config{
-		ParserMode: parser.ParseComments,
+	cfg := &packages.Config{
+		Mode: packages.LoadSyntax,
+		Fset: fset,
 	}
-	cfg.CreateFromFilenames("", name)
-	prog, err = cfg.Load()
+	pkgs, err := packages.Load(cfg, name)
 	if err != nil {
 		return nil, err
 	}
-	if n := len(prog.Created); n != 1 {
-		return nil, fmt.Errorf("got %d packages, want 1", n)
-	}
-	for _, pi := range prog.Created {
-		for _, file := range pi.Files {
-			sch := &schema{
-				Imports:      make(map[string]string),
-				Keys:         make(map[string]bool),
-				MapTypes:     make(map[string]bool),
-				SeqTypes:     make(map[string]bool),
-				JSONMapTypes: make(map[string]*types.Pointer),
-				JSONSeqTypes: make(map[string]*types.Pointer),
-				funcs:        make(template.FuncMap),
-			}
-			err := genFile(sch, file, pi, prog)
-			if err != nil {
-				return nil, err
-			}
-			sch.InputFile = name
 
-			var b bytes.Buffer
-			tmpl, err := template.New("").
-				Funcs(sch.funcs).
-				Funcs(template.FuncMap{
-					"trimprefix": strings.TrimPrefix,
-				}).
-				Parse(schemaTemplate)
-			if err != nil {
-				return nil, err
-			}
-			err = tmpl.Execute(&b, sch)
-			if err != nil {
-				return nil, err
-			}
-			return format.Source(b.Bytes())
-		}
+	if len(pkgs[0].Syntax) != 1 {
+		// TODO(kr): remove this limitation
+		return nil, errors.New("genbolt: schema must be a single file")
 	}
-	panic("unreached")
+
+	sch := &schema{
+		Imports:      make(map[string]string),
+		Keys:         make(map[string]bool),
+		MapTypes:     make(map[string]bool),
+		SeqTypes:     make(map[string]bool),
+		JSONMapTypes: make(map[string]*types.Pointer),
+		JSONSeqTypes: make(map[string]*types.Pointer),
+		funcs:        make(template.FuncMap),
+	}
+	err = genFile(sch, pkgs[0].Syntax[0], pkgs[0])
+	if err != nil {
+		return nil, err
+	}
+	sch.InputFile = name
+
+	var b bytes.Buffer
+	tmpl, err := template.New("").
+		Funcs(sch.funcs).
+		Funcs(template.FuncMap{
+			"trimprefix": strings.TrimPrefix,
+		}).
+		Parse(schemaTemplate)
+	if err != nil {
+		return nil, err
+	}
+	err = tmpl.Execute(&b, sch)
+	if err != nil {
+		return nil, err
+	}
+	return format.Source(b.Bytes())
 }
 
-func genFile(sch *schema, file *ast.File, pi *loader.PackageInfo, prog *loader.Program) error {
-	pkg := pi.Pkg
-	scope := pkg.Scope()
+func genFile(sch *schema, file *ast.File, schemaPkg *packages.Package) error {
+	typesInfo := schemaPkg.TypesInfo
+
+	scope := schemaPkg.Types.Scope()
 	sch.funcs["typestring"] = func(v interface{}) string {
 		if s, ok := v.(string); ok {
 			return s
@@ -87,7 +86,7 @@ func genFile(sch *schema, file *ast.File, pi *loader.PackageInfo, prog *loader.P
 		t, _ := p.Elem().(*types.Named)
 		return jsonTypes[t]
 	}
-	sch.Package = pkg.Name()
+	sch.Package = schemaPkg.Types.Name()
 
 	var userImports []*types.Package
 	for _, decl := range file.Decls {
@@ -100,7 +99,7 @@ func genFile(sch *schema, file *ast.File, pi *loader.PackageInfo, prog *loader.P
 		}
 		for _, spec := range genDecl.Specs {
 			vs := spec.(*ast.ValueSpec)
-			iface := pi.Types[vs.Type].Type
+			iface := typesInfo.Types[vs.Type].Type
 			if iface == nil {
 				return fmt.Errorf("interface assertion has no interface: %v", esprint(vs))
 			}
@@ -112,7 +111,7 @@ func genFile(sch *schema, file *ast.File, pi *loader.PackageInfo, prog *loader.P
 				if vs.Names[i].Name != "_" {
 					return fmt.Errorf("interface assertion has non-_ name: %v", esprint(vs))
 				}
-				convType := pi.Types[value].Type
+				convType := typesInfo.Types[value].Type
 				ptr, ok := convType.(*types.Pointer)
 				if !ok {
 					return fmt.Errorf("interface assertion has bad expression (must be pointer to named type): %v", esprint(convType))
@@ -202,7 +201,7 @@ func genFile(sch *schema, file *ast.File, pi *loader.PackageInfo, prog *loader.P
 							Doc:    field.Doc,
 						})
 					case *ast.StarExpr:
-						ptr := pi.Types[fieldType].Type.(*types.Pointer)
+						ptr := typesInfo.Types[fieldType].Type.(*types.Pointer)
 						named, ok := ptr.Elem().(*types.Named)
 						if !ok {
 							return fmt.Errorf("unknown type %s", esprint(field.Type))
@@ -255,7 +254,7 @@ func genFile(sch *schema, file *ast.File, pi *loader.PackageInfo, prog *loader.P
 									Doc:    field.Doc,
 								})
 							default:
-								t, _ := pi.Types[typ].Type.(*types.Named)
+								t, _ := typesInfo.Types[typ].Type.(*types.Named)
 								_, ok := jsonTypes[t]
 								if !ok {
 									return fmt.Errorf("cannot marshal %v; please implement json.Marshaler", esprint(elemType.X))
@@ -296,7 +295,7 @@ func genFile(sch *schema, file *ast.File, pi *loader.PackageInfo, prog *loader.P
 								Doc:    field.Doc,
 							})
 						default:
-							t, _ := pi.Types[typ].Type.(*types.Named)
+							t, _ := typesInfo.Types[typ].Type.(*types.Named)
 							_, ok := jsonTypes[t]
 							if !ok {
 								return fmt.Errorf("cannot marshal %v; please implement json.Marshaler", esprint(valueType.X))
@@ -326,7 +325,7 @@ func genFile(sch *schema, file *ast.File, pi *loader.PackageInfo, prog *loader.P
 
 func esprint(node interface{}) string {
 	var b bytes.Buffer
-	printer.Fprint(&b, prog.Fset, node)
+	printer.Fprint(&b, fset, node)
 	return b.String()
 }
 

@@ -44,8 +44,8 @@ type schemaStruct struct {
 }
 
 type schemaField struct {
-	Name   string      // field name
-	Type   interface{} // *types.Pointer or string
-	Bucket string      // containing struct's type
+	Name   string // field name
+	Type   types.Type
+	Bucket string // containing struct's type
 	Doc    *ast.CommentGroup
 }

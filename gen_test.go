@@ -24,6 +24,9 @@ func TestGen(t *testing.T) {
 		got, err := gen(name)
 		if err != nil {
 			t.Errorf("gen(%q) err = %v", name, err)
+			if got != nil {
+				t.Logf("output:\n%s", got)
+			}
 			continue
 		}
 		d := diff(got, want)
@@ -94,6 +97,9 @@ func TestGenError(t *testing.T) {
 		got, err := gen(name)
 		if err == nil {
 			t.Errorf("gen(%q) = [output], want error\n%s", name, got)
+			if got != nil {
+				t.Logf("output:\n%s", got)
+			}
 		}
 	}
 }

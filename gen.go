@@ -35,50 +35,63 @@ func gen(name string) (code []byte, err error) {
 		return nil, errors.New("genbolt: schema must be a single file")
 	}
 
-	sch := &schema{
-		Imports:      make(map[string]string),
-		Keys:         make(map[string]bool),
-		MapTypes:     make(map[string]bool),
-		SeqTypes:     make(map[string]bool),
-		JSONMapTypes: make(map[string]*types.Pointer),
-		JSONSeqTypes: make(map[string]*types.Pointer),
-		funcs:        make(template.FuncMap),
+	ctx := &context{
+		pkg: pkgs[0],
+		sch: &schema{
+			Imports:      make(map[string]string),
+			Keys:         make(map[string]bool),
+			MapTypes:     make(map[string]bool),
+			SeqTypes:     make(map[string]bool),
+			JSONMapTypes: make(map[string]*types.Pointer),
+			JSONSeqTypes: make(map[string]*types.Pointer),
+			funcs:        make(template.FuncMap),
+		},
+		jsonTypes: make(map[*types.Named]bool),
 	}
-	err = genFile(sch, pkgs[0].Syntax[0], pkgs[0])
+	err = genFile(ctx, pkgs[0].Syntax[0])
 	if err != nil {
 		return nil, err
 	}
-	sch.InputFile = name
+	ctx.sch.InputFile = name
 
 	var b bytes.Buffer
 	tmpl, err := template.New("").
-		Funcs(sch.funcs).
+		Funcs(ctx.sch.funcs).
 		Funcs(template.FuncMap{
 			"trimprefix": strings.TrimPrefix,
+			"identical":  types.Identical,
+			"basic":      basicType,
+			"sliceof":    types.NewSlice,
 		}).
 		Parse(schemaTemplate)
 	if err != nil {
 		return nil, err
 	}
-	err = tmpl.Execute(&b, sch)
+	err = tmpl.Execute(&b, ctx.sch)
 	if err != nil {
 		return nil, err
 	}
-	return format.Source(b.Bytes())
+	code, err = format.Source(b.Bytes())
+	if err != nil {
+		return b.Bytes(), err
+	}
+	return code, nil
 }
 
-func genFile(sch *schema, file *ast.File, schemaPkg *packages.Package) error {
-	typesInfo := schemaPkg.TypesInfo
-	scope := schemaPkg.Types.Scope()
-	jsonTypes := make(map[*types.Named]bool)
+type context struct {
+	sch *schema
+	pkg *packages.Package
 
-	sch.Package = schemaPkg.Types.Name()
+	jsonTypes map[*types.Named]bool
+}
 
-	sch.funcs["typestring"] = func(v interface{}) string {
-		if s, ok := v.(string); ok {
-			return s
-		}
-		t := v.(types.Type)
+func genFile(ctx *context, file *ast.File) error {
+	sch := ctx.sch
+	typesInfo := ctx.pkg.TypesInfo
+
+	sch.Package = file.Name.Name
+
+	sch.funcs["typestring"] = func(t types.Type) string {
 		return types.TypeString(t, func(p *types.Package) string {
 			return sch.Imports[p.Path()]
 		})
@@ -89,7 +102,7 @@ func genFile(sch *schema, file *ast.File, schemaPkg *packages.Package) error {
 			return false
 		}
 		t, _ := p.Elem().(*types.Named)
-		return jsonTypes[t]
+		return ctx.jsonTypes[t]
 	}
 
 	for _, decl := range file.Decls {
@@ -123,12 +136,12 @@ func genFile(sch *schema, file *ast.File, schemaPkg *packages.Package) error {
 				if !ok {
 					return fmt.Errorf("interface assertion has bad expression (must be pointer to named type): %v", esprint(convType))
 				}
-				jsonTypes[named] = true
+				ctx.jsonTypes[named] = true
 			}
 		}
 	}
 
-	for _, imp := range schemaPkg.Types.Imports() {
+	for _, imp := range ctx.pkg.Types.Imports() {
 		sch.Imports[imp.Path()] = imp.Name()
 	}
 	for _, imp := range file.Imports {
@@ -138,7 +151,7 @@ func genFile(sch *schema, file *ast.File, schemaPkg *packages.Package) error {
 		}
 	}
 
-	if len(jsonTypes) > 0 {
+	if len(ctx.jsonTypes) > 0 {
 		sch.Imports["encoding/json"] = "json"
 	}
 	sch.Imports["encoding/binary"] = "binary"
@@ -150,176 +163,181 @@ func genFile(sch *schema, file *ast.File, schemaPkg *packages.Package) error {
 			return fmt.Errorf("unexpected decl: %v", esprint(decl))
 		}
 		switch genDecl.Tok {
+		default:
+			return fmt.Errorf("unexpected decl: %v", esprint(decl))
 		case token.VAR, token.IMPORT:
 			continue
 		case token.TYPE: // ok, proceed
-		default:
-			return fmt.Errorf("unexpected decl: %v", esprint(decl))
 		}
 		for _, spec := range genDecl.Specs {
 			spec := spec.(*ast.TypeSpec)
 			if spec.Assign != 0 {
 				return fmt.Errorf("unexpected decl: %v", esprint(decl))
 			}
-			structType, ok := spec.Type.(*ast.StructType)
-			if !ok {
-				return fmt.Errorf("need struct type")
+			doc := spec.Doc
+			if doc == nil {
+				doc = genDecl.Doc
 			}
-
-			isRoot, rootSuffix := false, ""
-			if s := spec.Name.Name; strings.HasPrefix(s, "Root") {
-				rootSuffix = s[4:]
-				isRoot = s == "Root" || ast.IsExported(rootSuffix)
+			err := genStruct(ctx, spec.Name.Name, spec.Type, doc)
+			if err != nil {
+				return err
 			}
+		}
+	}
+	return nil
+}
 
-			sch.StructTypes = append(sch.StructTypes, &schemaStruct{
-				Name:   spec.Name.Name,
-				IsRoot: isRoot,
-				Doc:    genDecl.Doc,
-			})
+func genStruct(ctx *context, name string, typ ast.Expr, doc *ast.CommentGroup) error {
+	sch := ctx.sch
 
-			for _, field := range structType.Fields.List {
-				for _, name := range field.Names {
-					if !name.IsExported() {
-						return fmt.Errorf("all fields must be exported")
-					}
-					if isReserved(name) {
-						return fmt.Errorf("field name %s is reserved (sorry)", name.Name)
-					}
-					sch.Keys[name.Name] = true
+	structType, ok := typ.(*ast.StructType)
+	if !ok {
+		return fmt.Errorf("need struct type")
+	}
 
-					// TODO(kr): change this switch to use go/types
-					switch fieldType := field.Type.(type) {
-					case *ast.Ident:
-						if !isBasic(scope, fieldType.Name) {
-							return fmt.Errorf("unsupported type %s (try *%s instead?)", fieldType.Name, fieldType.Name)
-						}
-						if isRoot {
-							return fmt.Errorf("unsupported root field type %s", esprint(field.Type))
-						}
-						sch.RecordFields = append(sch.RecordFields, &schemaField{
-							Name:   name.Name,
-							Type:   fieldType.Name,
-							Bucket: spec.Name.Name,
-							Doc:    field.Doc,
-						})
-					case *ast.StarExpr:
-						ptr := typesInfo.Types[fieldType].Type.(*types.Pointer)
-						named, ok := ptr.Elem().(*types.Named)
-						if !ok {
-							return fmt.Errorf("unknown type %s", esprint(field.Type))
-						}
+	isRoot := false
+	if strings.HasPrefix(name, "Root") {
+		isRoot = name == "Root" || ast.IsExported(name[4:])
+	}
 
-						if _, ok := jsonTypes[named]; ok {
-							sch.RecordFields = append(sch.RecordFields, &schemaField{
-								Name:   name.Name,
-								Type:   types.NewPointer(named),
-								Bucket: spec.Name.Name,
-								Doc:    field.Doc,
-							})
-						} else if typ, ok := fieldType.X.(*ast.Ident); ok {
-							// TODO(kr): look up typeName.Name and make sure it's a struct.
-							sch.BucketFields = append(sch.BucketFields, &schemaField{
-								Name:   name.Name,
-								Type:   typ.Name,
-								Bucket: spec.Name.Name,
-								Doc:    field.Doc,
-							})
-						} else {
-							return fmt.Errorf("unknown type %s", esprint(field.Type))
-						}
-					case *ast.ArrayType:
-						if fieldType.Len != nil {
-							return fmt.Errorf("cannot have array type (use a slice)")
-						}
+	sch.StructTypes = append(sch.StructTypes, &schemaStruct{
+		Name:   name,
+		IsRoot: isRoot,
+		Doc:    doc,
+	})
 
-						switch elemType := fieldType.Elt.(type) {
-						case *ast.Ident:
-							if !isBasic(scope, elemType.Name) {
-								return fmt.Errorf("unsupported type %s (try *%s instead?)", elemType.Name, elemType.Name)
-							}
-							sch.RecordFields = append(sch.RecordFields, &schemaField{
-								Name:   name.Name,
-								Type:   "[]" + elemType.Name,
-								Bucket: spec.Name.Name,
-								Doc:    field.Doc,
-							})
-						case *ast.StarExpr:
-							switch typ := elemType.X.(type) {
-							case *ast.Ident:
-								// TODO(kr): look up typ.Name and make sure
-								// it's a struct.
-								sch.SeqTypes[typ.Name] = true
-								sch.BucketFields = append(sch.BucketFields, &schemaField{
-									Name:   name.Name,
-									Type:   typ.Name + "Seq",
-									Bucket: spec.Name.Name,
-									Doc:    field.Doc,
-								})
-							default:
-								t, _ := typesInfo.Types[typ].Type.(*types.Named)
-								_, ok := jsonTypes[t]
-								if !ok {
-									return fmt.Errorf("cannot marshal %v; please implement json.Marshaler", esprint(elemType.X))
-								}
+	for _, field := range structType.Fields.List {
+		for _, fieldIdent := range field.Names {
+			if !fieldIdent.IsExported() {
+				return fmt.Errorf("all fields must be exported")
+			}
+			if isReserved(fieldIdent.Name) {
+				return fmt.Errorf("field name %s is reserved (sorry)", fieldIdent)
+			}
+			sch.Keys[fieldIdent.Name] = true
 
-								pkg := t.Obj().Pkg().Name()
-								ru, n := utf8.DecodeRuneInString(pkg)
-								seqType := string(unicode.ToUpper(ru)) + pkg[n:] + t.Obj().Name() + "Seq"
-								sch.JSONSeqTypes[seqType] = types.NewPointer(t)
-
-								sch.BucketFields = append(sch.BucketFields, &schemaField{
-									Name:   name.Name,
-									Type:   seqType,
-									Bucket: spec.Name.Name,
-									Doc:    field.Doc,
-								})
-							}
-						default:
-							return fmt.Errorf("slice element must be pointer to struct or basic type")
-						}
-					case *ast.MapType:
-						keyType, ok := fieldType.Key.(*ast.Ident)
-						if !ok || keyType.Name != "string" {
-							return fmt.Errorf("map key must be string")
-						}
-						valueType, ok := fieldType.Value.(*ast.StarExpr)
-						if !ok {
-							return fmt.Errorf("map value must be pointer to named struct type")
-						}
-
-						switch typ := valueType.X.(type) {
-						case *ast.Ident:
-							sch.MapTypes[typ.Name] = true
-							sch.BucketFields = append(sch.BucketFields, &schemaField{
-								Name:   name.Name,
-								Type:   typ.Name + "Map",
-								Bucket: spec.Name.Name,
-								Doc:    field.Doc,
-							})
-						default:
-							t, _ := typesInfo.Types[typ].Type.(*types.Named)
-							_, ok := jsonTypes[t]
-							if !ok {
-								return fmt.Errorf("cannot marshal %v; please implement json.Marshaler", esprint(valueType.X))
-							}
-
-							pkg := t.Obj().Pkg().Name()
-							ru, n := utf8.DecodeRuneInString(pkg)
-							mapType := string(unicode.ToUpper(ru)) + pkg[n:] + t.Obj().Name() + "Map"
-							sch.JSONMapTypes[mapType] = types.NewPointer(t)
-
-							sch.BucketFields = append(sch.BucketFields, &schemaField{
-								Name:   name.Name,
-								Type:   mapType,
-								Bucket: spec.Name.Name,
-								Doc:    field.Doc,
-							})
-						}
-					default:
-						return fmt.Errorf("unsupported type %v", esprint(field.Type))
-					}
+			switch fieldType := ctx.pkg.TypesInfo.Defs[fieldIdent].Type().(type) {
+			default:
+				return fmt.Errorf("unsupported type %v", esprint(field.Type))
+			case *types.Basic:
+				if isRoot {
+					return fmt.Errorf("unsupported root field type %s", esprint(field.Type))
 				}
+				sch.RecordFields = append(sch.RecordFields, &schemaField{
+					Name:   fieldIdent.Name,
+					Type:   fieldType,
+					Bucket: name,
+					Doc:    field.Doc,
+				})
+			case *types.Named:
+				return fmt.Errorf("unsupported type %s (try *%s instead?)", fieldIdent.Name, fieldType.String())
+			case *types.Pointer:
+				named, ok := fieldType.Elem().(*types.Named)
+				if !ok {
+					return fmt.Errorf("unknown type %s", esprint(field.Type))
+				}
+
+				if _, ok := ctx.jsonTypes[named]; ok {
+					sch.RecordFields = append(sch.RecordFields, &schemaField{
+						Name:   fieldIdent.Name,
+						Type:   fieldType,
+						Bucket: name,
+						Doc:    field.Doc,
+					})
+				} else if _, ok := named.Underlying().(*types.Struct); ok {
+					sch.BucketFields = append(sch.BucketFields, &schemaField{
+						Name:   fieldIdent.Name,
+						Type:   fieldType,
+						Bucket: name,
+						Doc:    field.Doc,
+					})
+				} else {
+					return fmt.Errorf("unknown type %s", esprint(field.Type))
+				}
+			case *types.Array:
+				return fmt.Errorf("cannot have array type (use a slice)")
+			case *types.Slice:
+				switch elemType := fieldType.Elem().(type) {
+				default:
+					return fmt.Errorf("slice element must be pointer to struct or basic type")
+				case *types.Basic:
+					sch.RecordFields = append(sch.RecordFields, &schemaField{
+						Name:   fieldIdent.Name,
+						Type:   fieldType,
+						Bucket: name,
+						Doc:    field.Doc,
+					})
+				case *types.Pointer:
+					named, ok := elemType.Elem().(*types.Named)
+					if !ok {
+						return fmt.Errorf("unknown type %s", esprint(field.Type))
+					}
+
+					var seqTypeName string
+
+					if _, ok := ctx.jsonTypes[named]; ok {
+						pkgName := named.Obj().Pkg().Name()
+						ru, n := utf8.DecodeRuneInString(pkgName)
+						seqTypeName = string(unicode.ToUpper(ru)) + pkgName[n:] + named.Obj().Name() + "Seq"
+						sch.JSONSeqTypes[seqTypeName] = elemType
+					} else if _, ok := named.Underlying().(*types.Struct); ok {
+						seqTypeName = named.Obj().Name() + "Seq"
+						sch.SeqTypes[named.Obj().Name()] = true
+					} else {
+						return fmt.Errorf("unknown type %s", esprint(field.Type))
+					}
+
+					sch.BucketFields = append(sch.BucketFields, &schemaField{
+						Name: fieldIdent.Name,
+						Type: types.NewPointer(types.NewNamed(
+							types.NewTypeName(0, ctx.pkg.Types, seqTypeName, nil),
+							types.Typ[types.Invalid],
+							nil,
+						)),
+						Bucket: name,
+						Doc:    field.Doc,
+					})
+				}
+			case *types.Map:
+				// TODO(kr): allow numeric types as map keys too
+				keyType, ok := fieldType.Key().(*types.Basic)
+				if !ok || keyType.Kind() != types.String {
+					return fmt.Errorf("map key must be string")
+				}
+				ptr, ok := fieldType.Elem().(*types.Pointer)
+				if !ok {
+					return fmt.Errorf("map value must be pointer to named struct type")
+				}
+
+				named, ok := ptr.Elem().(*types.Named)
+				if !ok {
+					return fmt.Errorf("unknown type %s", esprint(field.Type))
+				}
+
+				var mapTypeName string
+
+				if _, ok := ctx.jsonTypes[named]; ok {
+					pkgName := named.Obj().Pkg().Name()
+					ru, n := utf8.DecodeRuneInString(pkgName)
+					mapTypeName = string(unicode.ToUpper(ru)) + pkgName[n:] + named.Obj().Name() + "Map"
+					sch.JSONMapTypes[mapTypeName] = types.NewPointer(named)
+				} else if _, ok := named.Underlying().(*types.Struct); ok {
+					mapTypeName = named.Obj().Name() + "Map"
+					sch.MapTypes[named.Obj().Name()] = true
+				} else {
+					return fmt.Errorf("unknown type %s", esprint(field.Type))
+				}
+
+				sch.BucketFields = append(sch.BucketFields, &schemaField{
+					Name: fieldIdent.Name,
+					Type: types.NewPointer(types.NewNamed(
+						types.NewTypeName(0, ctx.pkg.Types, mapTypeName, nil),
+						types.Typ[types.Invalid],
+						nil,
+					)),
+					Bucket: name,
+					Doc:    field.Doc,
+				})
 			}
 		}
 	}
@@ -344,10 +362,23 @@ func isBasic(scope *types.Scope, name string) bool {
 	return ok
 }
 
-func isReserved(name *ast.Ident) bool {
-	switch name.Name {
+func isReserved(name string) bool {
+	switch name {
 	case "Tx", "Bucket":
 		return true
 	}
 	return false
+}
+
+var basicTypes = make(map[string]*types.Basic)
+
+// basicType returns the named basic type.
+func basicType(name string) *types.Basic {
+	return basicTypes[name]
+}
+
+func init() {
+	for _, t := range types.Typ {
+		basicTypes[t.Name()] = t
+	}
 }

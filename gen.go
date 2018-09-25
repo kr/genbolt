@@ -9,6 +9,7 @@ import (
 	"go/printer"
 	"go/token"
 	"go/types"
+	"strconv"
 	"strings"
 	"text/template"
 	"unicode"
@@ -68,16 +69,20 @@ func gen(name string) (code []byte, err error) {
 
 func genFile(sch *schema, file *ast.File, schemaPkg *packages.Package) error {
 	typesInfo := schemaPkg.TypesInfo
-
 	scope := schemaPkg.Types.Scope()
+	jsonTypes := make(map[*types.Named]bool)
+
+	sch.Package = schemaPkg.Types.Name()
+
 	sch.funcs["typestring"] = func(v interface{}) string {
 		if s, ok := v.(string); ok {
 			return s
 		}
 		t := v.(types.Type)
-		return types.TypeString(t, (*types.Package).Name)
+		return types.TypeString(t, func(p *types.Package) string {
+			return sch.Imports[p.Path()]
+		})
 	}
-	jsonTypes := make(map[*types.Named]bool)
 	sch.funcs["isjsontype"] = func(v interface{}) bool {
 		p, ok := v.(*types.Pointer)
 		if !ok {
@@ -86,9 +91,7 @@ func genFile(sch *schema, file *ast.File, schemaPkg *packages.Package) error {
 		t, _ := p.Elem().(*types.Named)
 		return jsonTypes[t]
 	}
-	sch.Package = schemaPkg.Types.Name()
 
-	var userImports []*types.Package
 	for _, decl := range file.Decls {
 		genDecl, ok := decl.(*ast.GenDecl)
 		if !ok {
@@ -121,8 +124,17 @@ func genFile(sch *schema, file *ast.File, schemaPkg *packages.Package) error {
 					return fmt.Errorf("interface assertion has bad expression (must be pointer to named type): %v", esprint(convType))
 				}
 				jsonTypes[named] = true
-				userImports = append(userImports, named.Obj().Pkg())
 			}
+		}
+	}
+
+	for _, imp := range schemaPkg.Types.Imports() {
+		sch.Imports[imp.Path()] = imp.Name()
+	}
+	for _, imp := range file.Imports {
+		path, _ := strconv.Unquote(imp.Path.Value)
+		if imp.Name != nil {
+			sch.Imports[path] = imp.Name.Name
 		}
 	}
 
@@ -131,15 +143,6 @@ func genFile(sch *schema, file *ast.File, schemaPkg *packages.Package) error {
 	}
 	sch.Imports["encoding/binary"] = "binary"
 	sch.Imports["github.com/coreos/bbolt"] = "bolt"
-	seenNames := make(map[string]string) // name -> import path
-	for _, pkg := range userImports {
-		if p := seenNames[pkg.Name()]; p != "" && p != pkg.Path() {
-			return fmt.Errorf("duplicate package name %s from import paths %s and %s", pkg.Name(), pkg.Path(), p)
-		}
-		seenNames[pkg.Name()] = pkg.Path()
-		// TODO(kr): use package label from input file (also gives uniqueness)
-		sch.Imports[pkg.Path()] = pkg.Name()
-	}
 
 	for _, decl := range file.Decls {
 		genDecl, ok := decl.(*ast.GenDecl)

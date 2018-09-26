@@ -10,7 +10,7 @@ Each struct is a bucket. Maps and slices are
 also buckets. Fields with numeric types or
 string or []byte are values stored in the bucket.
 
-For example, consider this code.
+For example, here is a schema definition:
 
 	package db
 
@@ -34,6 +34,21 @@ holding all user records.
 Type User is a bucket representing a single user.
 Field Config leads to the single Config bucket,
 holding a single number.
+
+This schema produces the following package interface
+(with some definitions elided):
+
+	func (o *Root) Config() *Config
+	func (o *Root) Users() *SeqOfUser
+
+	func (o *Config) PutRateLimit(v int64)
+	func (o *Config) RateLimit() int64
+
+	func (o *User) Name() string
+	func (o *User) PutName(v string)
+
+	func (o *SeqOfUser) Add() (*User, uint64)
+	func (o *SeqOfUser) Get(n uint64) *User
 
 Named types from other packages can be used,
 provided they're accompanied by

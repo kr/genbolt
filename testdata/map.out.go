@@ -25,23 +25,23 @@ func (o *V) Bucket() *bolt.Bucket {
 	return o.db
 }
 
-func (o *T) M() *VMap {
-	return &VMap{bucket(o.db, keyM)}
+func (o *T) M() *MapOfV {
+	return &MapOfV{bucket(o.db, keyM)}
 }
 
-type VMap struct {
+type MapOfV struct {
 	db *bolt.Bucket
 }
 
-func (o *VMap) Bucket() *bolt.Bucket {
+func (o *MapOfV) Bucket() *bolt.Bucket {
 	return o.db
 }
 
-func (o *VMap) Get(key []byte) *V {
+func (o *MapOfV) Get(key []byte) *V {
 	return &V{bucket(o.db, key)}
 }
 
-func (o *VMap) GetByString(key string) *V {
+func (o *MapOfV) GetByString(key string) *V {
 	return &V{bucket(o.db, []byte(key))}
 }
 

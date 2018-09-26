@@ -40,8 +40,8 @@ func gen(name string) (code []byte, err error) {
 		sch: &schema{
 			Imports:          make(map[string]string),
 			Keys:             make(map[string]bool),
-			MapOfBucketTypes: make(map[string]bool),
-			SeqOfBucketTypes: make(map[string]bool),
+			MapOfBucketTypes: make(map[string]string),
+			SeqOfBucketTypes: make(map[string]string),
 			MapOfRecordTypes: make(map[string]*types.Pointer),
 			SeqOfRecordTypes: make(map[string]*types.Pointer),
 			funcs:            make(template.FuncMap),
@@ -296,11 +296,11 @@ func genStruct(ctx *context, name string, typ ast.Expr, doc *ast.CommentGroup) e
 					if isRecordType(ctx, named) {
 						pkgName := named.Obj().Pkg().Name()
 						ru, n := utf8.DecodeRuneInString(pkgName)
-						seqTypeName = string(unicode.ToUpper(ru)) + pkgName[n:] + named.Obj().Name() + "Seq"
+						seqTypeName = "SeqOf" + string(unicode.ToUpper(ru)) + pkgName[n:] + named.Obj().Name()
 						sch.SeqOfRecordTypes[seqTypeName] = elemType
 					} else if _, ok := named.Underlying().(*types.Struct); ok {
-						seqTypeName = named.Obj().Name() + "Seq"
-						sch.SeqOfBucketTypes[named.Obj().Name()] = true
+						seqTypeName = "SeqOf" + named.Obj().Name()
+						sch.SeqOfBucketTypes[seqTypeName] = named.Obj().Name()
 					} else {
 						return fmt.Errorf("unknown type %s", esprint(field.Type))
 					}
@@ -337,11 +337,11 @@ func genStruct(ctx *context, name string, typ ast.Expr, doc *ast.CommentGroup) e
 				if isRecordType(ctx, named) {
 					pkgName := named.Obj().Pkg().Name()
 					ru, n := utf8.DecodeRuneInString(pkgName)
-					mapTypeName = string(unicode.ToUpper(ru)) + pkgName[n:] + named.Obj().Name() + "Map"
+					mapTypeName = "MapOf" + string(unicode.ToUpper(ru)) + pkgName[n:] + named.Obj().Name()
 					sch.MapOfRecordTypes[mapTypeName] = types.NewPointer(named)
 				} else if _, ok := named.Underlying().(*types.Struct); ok {
-					mapTypeName = named.Obj().Name() + "Map"
-					sch.MapOfBucketTypes[named.Obj().Name()] = true
+					mapTypeName = "MapOf" + named.Obj().Name()
+					sch.MapOfBucketTypes[mapTypeName] = named.Obj().Name()
 				} else {
 					return fmt.Errorf("unknown type %s", esprint(field.Type))
 				}

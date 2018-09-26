@@ -209,41 +209,41 @@ func (o *{{.Bucket}}) Put{{.Name}}(v {{typestring .Type}}) {
 }
 {{end}}
 
-{{range $type, $_ := .MapOfBucketTypes}}
-type {{$type}}Map struct {
+{{range $type, $elem := .MapOfBucketTypes}}
+type {{$type}} struct {
 	db *bolt.Bucket
 }
 
-func (o *{{$type}}Map) Bucket() *bolt.Bucket {
+func (o *{{$type}}) Bucket() *bolt.Bucket {
 	return o.db
 }
 
-func (o *{{$type}}Map) Get(key []byte) *{{$type}} {
-	return &{{$type}}{bucket(o.db, key)}
+func (o *{{$type}}) Get(key []byte) *{{$elem}} {
+	return &{{$elem}}{bucket(o.db, key)}
 }
 
-func (o *{{$type}}Map) GetByString(key string) *{{$type}} {
+func (o *{{$type}}) GetByString(key string) *{{$elem}} {
 	{{/* TODO(kr): consider unsafe conversion */ -}}
-	return &{{$type}}{bucket(o.db, []byte(key))}
+	return &{{$elem}}{bucket(o.db, []byte(key))}
 }
 {{end}}
 
-{{range $type, $_ := .SeqOfBucketTypes}}
-type {{$type}}Seq struct {
+{{range $type, $elem := .SeqOfBucketTypes}}
+type {{$type}} struct {
 	db *bolt.Bucket
 }
 
-func (o *{{$type}}Seq) Bucket() *bolt.Bucket {
+func (o *{{$type}}) Bucket() *bolt.Bucket {
 	return o.db
 }
 
-func (o *{{$type}}Seq) Get(n uint64) *{{$type}} {
+func (o *{{$type}}) Get(n uint64) *{{$elem}} {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)
-	return &{{$type}}{bucket(o.db, key)}
+	return &{{$elem}}{bucket(o.db, key)}
 }
 
-func (o *{{$type}}Seq) Add() (*{{$type}}, uint64) {
+func (o *{{$type}}) Add() (*{{$elem}}, uint64) {
 	n, err := o.db.NextSequence()
 	if err != nil {
 		panic(err)

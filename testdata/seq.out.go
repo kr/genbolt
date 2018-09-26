@@ -25,25 +25,25 @@ func (o *U) Bucket() *bolt.Bucket {
 	return o.db
 }
 
-func (o *T) S() *USeq {
-	return &USeq{bucket(o.db, keyS)}
+func (o *T) S() *SeqOfU {
+	return &SeqOfU{bucket(o.db, keyS)}
 }
 
-type USeq struct {
+type SeqOfU struct {
 	db *bolt.Bucket
 }
 
-func (o *USeq) Bucket() *bolt.Bucket {
+func (o *SeqOfU) Bucket() *bolt.Bucket {
 	return o.db
 }
 
-func (o *USeq) Get(n uint64) *U {
+func (o *SeqOfU) Get(n uint64) *U {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)
 	return &U{bucket(o.db, key)}
 }
 
-func (o *USeq) Add() (*U, uint64) {
+func (o *SeqOfU) Add() (*U, uint64) {
 	n, err := o.db.NextSequence()
 	if err != nil {
 		panic(err)

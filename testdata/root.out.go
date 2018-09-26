@@ -87,8 +87,8 @@ func (o *Root) F() *T {
 	return &T{bucket(o.db, keyF)}
 }
 
-func (o *Root) S() *TSeq {
-	return &TSeq{bucket(o.db, keyS)}
+func (o *Root) S() *SeqOfT {
+	return &SeqOfT{bucket(o.db, keyS)}
 }
 
 func (o *RootFoo) F() *T {
@@ -99,21 +99,21 @@ func (o *Rootbar) F() *T {
 	return &T{bucket(o.db, keyF)}
 }
 
-type TSeq struct {
+type SeqOfT struct {
 	db *bolt.Bucket
 }
 
-func (o *TSeq) Bucket() *bolt.Bucket {
+func (o *SeqOfT) Bucket() *bolt.Bucket {
 	return o.db
 }
 
-func (o *TSeq) Get(n uint64) *T {
+func (o *SeqOfT) Get(n uint64) *T {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)
 	return &T{bucket(o.db, key)}
 }
 
-func (o *TSeq) Add() (*T, uint64) {
+func (o *SeqOfT) Add() (*T, uint64) {
 	n, err := o.db.NextSequence()
 	if err != nil {
 		panic(err)

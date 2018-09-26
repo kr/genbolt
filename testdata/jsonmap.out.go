@@ -19,19 +19,19 @@ func (o *T) Bucket() *bolt.Bucket {
 	return o.db
 }
 
-func (o *T) J() *SampleJSONMap {
-	return &SampleJSONMap{bucket(o.db, keyJ)}
+func (o *T) J() *MapOfSampleJSON {
+	return &MapOfSampleJSON{bucket(o.db, keyJ)}
 }
 
-type SampleJSONMap struct {
+type MapOfSampleJSON struct {
 	db *bolt.Bucket
 }
 
-func (o *SampleJSONMap) Bucket() *bolt.Bucket {
+func (o *MapOfSampleJSON) Bucket() *bolt.Bucket {
 	return o.db
 }
 
-func (o *SampleJSONMap) Get(key []byte) *sample.JSON {
+func (o *MapOfSampleJSON) Get(key []byte) *sample.JSON {
 	rec := get(o.db, key)
 	v := new(sample.JSON)
 	if rec == nil {
@@ -44,11 +44,11 @@ func (o *SampleJSONMap) Get(key []byte) *sample.JSON {
 	return v
 }
 
-func (o *SampleJSONMap) GetByString(key string) *sample.JSON {
+func (o *MapOfSampleJSON) GetByString(key string) *sample.JSON {
 	return o.Get([]byte(key))
 }
 
-func (o *SampleJSONMap) Put(key []byte, v *sample.JSON) {
+func (o *MapOfSampleJSON) Put(key []byte, v *sample.JSON) {
 	rec, err := json.Marshal(json.Marshaler(v))
 	if err != nil {
 		panic(err)
@@ -56,7 +56,7 @@ func (o *SampleJSONMap) Put(key []byte, v *sample.JSON) {
 	put(o.db, key, rec)
 }
 
-func (o *SampleJSONMap) PutByString(key string, v *sample.JSON) {
+func (o *MapOfSampleJSON) PutByString(key string, v *sample.JSON) {
 	o.Put([]byte(key), v)
 }
 

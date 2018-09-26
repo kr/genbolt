@@ -19,19 +19,19 @@ func (o *T) Bucket() *bolt.Bucket {
 	return o.db
 }
 
-func (o *T) B() *SampleBinaryMap {
-	return &SampleBinaryMap{bucket(o.db, keyB)}
+func (o *T) B() *MapOfSampleBinary {
+	return &MapOfSampleBinary{bucket(o.db, keyB)}
 }
 
-type SampleBinaryMap struct {
+type MapOfSampleBinary struct {
 	db *bolt.Bucket
 }
 
-func (o *SampleBinaryMap) Bucket() *bolt.Bucket {
+func (o *MapOfSampleBinary) Bucket() *bolt.Bucket {
 	return o.db
 }
 
-func (o *SampleBinaryMap) Get(key []byte) *sample.Binary {
+func (o *MapOfSampleBinary) Get(key []byte) *sample.Binary {
 	rec := get(o.db, key)
 	v := new(sample.Binary)
 	if rec == nil {
@@ -44,11 +44,11 @@ func (o *SampleBinaryMap) Get(key []byte) *sample.Binary {
 	return v
 }
 
-func (o *SampleBinaryMap) GetByString(key string) *sample.Binary {
+func (o *MapOfSampleBinary) GetByString(key string) *sample.Binary {
 	return o.Get([]byte(key))
 }
 
-func (o *SampleBinaryMap) Put(key []byte, v *sample.Binary) {
+func (o *MapOfSampleBinary) Put(key []byte, v *sample.Binary) {
 	rec, err := encoding.BinaryMarshaler(v).MarshalBinary()
 	if err != nil {
 		panic(err)
@@ -56,7 +56,7 @@ func (o *SampleBinaryMap) Put(key []byte, v *sample.Binary) {
 	put(o.db, key, rec)
 }
 
-func (o *SampleBinaryMap) PutByString(key string, v *sample.Binary) {
+func (o *MapOfSampleBinary) PutByString(key string, v *sample.Binary) {
 	o.Put([]byte(key), v)
 }
 

@@ -19,19 +19,19 @@ func (o *T) Bucket() *bolt.Bucket {
 	return o.db
 }
 
-func (o *T) B() *SampleBinarySeq {
-	return &SampleBinarySeq{bucket(o.db, keyB)}
+func (o *T) B() *SeqOfSampleBinary {
+	return &SeqOfSampleBinary{bucket(o.db, keyB)}
 }
 
-type SampleBinarySeq struct {
+type SeqOfSampleBinary struct {
 	db *bolt.Bucket
 }
 
-func (o *SampleBinarySeq) Bucket() *bolt.Bucket {
+func (o *SeqOfSampleBinary) Bucket() *bolt.Bucket {
 	return o.db
 }
 
-func (o *SampleBinarySeq) Get(n uint64) *sample.Binary {
+func (o *SeqOfSampleBinary) Get(n uint64) *sample.Binary {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)
 	rec := get(o.db, key)
@@ -51,7 +51,7 @@ func (o *SampleBinarySeq) Get(n uint64) *sample.Binary {
 // before marshaling v. Thus, it is okay for
 // np to point to a field inside v, to store
 // the sequence number in the new record.
-func (o *SampleBinarySeq) Add(v *sample.Binary, np *uint64) {
+func (o *SeqOfSampleBinary) Add(v *sample.Binary, np *uint64) {
 	n, err := o.db.NextSequence()
 	if err != nil {
 		panic(err)
@@ -60,7 +60,7 @@ func (o *SampleBinarySeq) Add(v *sample.Binary, np *uint64) {
 	o.Put(n, v)
 }
 
-func (o *SampleBinarySeq) Put(n uint64, v *sample.Binary) {
+func (o *SeqOfSampleBinary) Put(n uint64, v *sample.Binary) {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)
 	rec, err := encoding.BinaryMarshaler(v).MarshalBinary()

@@ -20,9 +20,10 @@ type schema struct {
 	// the schema as '[]T' or 'map[string]T'.
 	//
 	// The map key in Go is the bucket name and the local
-	// type name of container e.g. 'FooMap' or 'FooSeq'.
-	MapOfBucketTypes map[string]bool
-	SeqOfBucketTypes map[string]bool
+	// type name of container e.g. 'MapOfFoo' or 'SeqOfFoo'.
+	// The map value is the type of the container's element.
+	MapOfBucketTypes map[string]string
+	SeqOfBucketTypes map[string]string
 	MapOfRecordTypes map[string]*types.Pointer
 	SeqOfRecordTypes map[string]*types.Pointer
 

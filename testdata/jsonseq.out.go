@@ -19,19 +19,19 @@ func (o *T) Bucket() *bolt.Bucket {
 	return o.db
 }
 
-func (o *T) J() *SampleJSONSeq {
-	return &SampleJSONSeq{bucket(o.db, keyJ)}
+func (o *T) J() *SeqOfSampleJSON {
+	return &SeqOfSampleJSON{bucket(o.db, keyJ)}
 }
 
-type SampleJSONSeq struct {
+type SeqOfSampleJSON struct {
 	db *bolt.Bucket
 }
 
-func (o *SampleJSONSeq) Bucket() *bolt.Bucket {
+func (o *SeqOfSampleJSON) Bucket() *bolt.Bucket {
 	return o.db
 }
 
-func (o *SampleJSONSeq) Get(n uint64) *sample.JSON {
+func (o *SeqOfSampleJSON) Get(n uint64) *sample.JSON {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)
 	rec := get(o.db, key)
@@ -51,7 +51,7 @@ func (o *SampleJSONSeq) Get(n uint64) *sample.JSON {
 // before marshaling v. Thus, it is okay for
 // np to point to a field inside v, to store
 // the sequence number in the new record.
-func (o *SampleJSONSeq) Add(v *sample.JSON, np *uint64) {
+func (o *SeqOfSampleJSON) Add(v *sample.JSON, np *uint64) {
 	n, err := o.db.NextSequence()
 	if err != nil {
 		panic(err)
@@ -60,7 +60,7 @@ func (o *SampleJSONSeq) Add(v *sample.JSON, np *uint64) {
 	o.Put(n, v)
 }
 
-func (o *SampleJSONSeq) Put(n uint64, v *sample.JSON) {
+func (o *SeqOfSampleJSON) Put(n uint64, v *sample.JSON) {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)
 	rec, err := json.Marshal(json.Marshaler(v))

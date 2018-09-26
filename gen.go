@@ -38,15 +38,16 @@ func gen(name string) (code []byte, err error) {
 	ctx := &context{
 		pkg: pkgs[0],
 		sch: &schema{
-			Imports:      make(map[string]string),
-			Keys:         make(map[string]bool),
-			MapTypes:     make(map[string]bool),
-			SeqTypes:     make(map[string]bool),
-			JSONMapTypes: make(map[string]*types.Pointer),
-			JSONSeqTypes: make(map[string]*types.Pointer),
-			funcs:        make(template.FuncMap),
+			Imports:          make(map[string]string),
+			Keys:             make(map[string]bool),
+			MapOfBucketTypes: make(map[string]bool),
+			SeqOfBucketTypes: make(map[string]bool),
+			MapOfRecordTypes: make(map[string]*types.Pointer),
+			SeqOfRecordTypes: make(map[string]*types.Pointer),
+			funcs:            make(template.FuncMap),
 		},
 		jsonTypes: make(map[*types.Named]bool),
+		binTypes:  make(map[*types.Named]bool),
 	}
 	err = genFile(ctx, pkgs[0].Syntax[0])
 	if err != nil {
@@ -83,6 +84,7 @@ type context struct {
 	pkg *packages.Package
 
 	jsonTypes map[*types.Named]bool
+	binTypes  map[*types.Named]bool
 }
 
 func genFile(ctx *context, file *ast.File) error {
@@ -104,6 +106,14 @@ func genFile(ctx *context, file *ast.File) error {
 		t, _ := p.Elem().(*types.Named)
 		return ctx.jsonTypes[t]
 	}
+	sch.funcs["isbintype"] = func(v interface{}) bool {
+		p, ok := v.(*types.Pointer)
+		if !ok {
+			return false
+		}
+		t, _ := p.Elem().(*types.Named)
+		return ctx.binTypes[t]
+	}
 
 	for _, decl := range file.Decls {
 		genDecl, ok := decl.(*ast.GenDecl)
@@ -119,8 +129,15 @@ func genFile(ctx *context, file *ast.File) error {
 			if iface == nil {
 				return fmt.Errorf("interface assertion has no interface: %v", esprint(vs))
 			}
-			if n, ok := iface.(*types.Named); !ok || n.String() != "encoding/json.Marshaler" {
-				return fmt.Errorf("unsupported interface: %v", n)
+
+			var typeMap map[*types.Named]bool
+			switch iface.String() {
+			case "encoding/json.Marshaler":
+				typeMap = ctx.jsonTypes
+			case "encoding.BinaryMarshaler":
+				typeMap = ctx.binTypes
+			default:
+				return fmt.Errorf("unsupported interface: %v", iface)
 			}
 
 			for i, value := range vs.Values {
@@ -136,7 +153,7 @@ func genFile(ctx *context, file *ast.File) error {
 				if !ok {
 					return fmt.Errorf("interface assertion has bad expression (must be pointer to named type): %v", esprint(convType))
 				}
-				ctx.jsonTypes[named] = true
+				typeMap[named] = true
 			}
 		}
 	}
@@ -153,6 +170,9 @@ func genFile(ctx *context, file *ast.File) error {
 
 	if len(ctx.jsonTypes) > 0 {
 		sch.Imports["encoding/json"] = "json"
+	}
+	if len(ctx.binTypes) > 0 {
+		sch.Imports["encoding"] = "encoding"
 	}
 	sch.Imports["encoding/binary"] = "binary"
 	sch.Imports["github.com/coreos/bbolt"] = "bolt"
@@ -237,23 +257,21 @@ func genStruct(ctx *context, name string, typ ast.Expr, doc *ast.CommentGroup) e
 					return fmt.Errorf("unknown type %s", esprint(field.Type))
 				}
 
-				if _, ok := ctx.jsonTypes[named]; ok {
-					sch.RecordFields = append(sch.RecordFields, &schemaField{
-						Name:   fieldIdent.Name,
-						Type:   fieldType,
-						Bucket: name,
-						Doc:    field.Doc,
-					})
+				var fields *[]*schemaField
+				if isRecordType(ctx, named) {
+					fields = &sch.RecordFields
 				} else if _, ok := named.Underlying().(*types.Struct); ok {
-					sch.BucketFields = append(sch.BucketFields, &schemaField{
-						Name:   fieldIdent.Name,
-						Type:   fieldType,
-						Bucket: name,
-						Doc:    field.Doc,
-					})
+					fields = &sch.BucketFields
 				} else {
 					return fmt.Errorf("unknown type %s", esprint(field.Type))
 				}
+
+				*fields = append(*fields, &schemaField{
+					Name:   fieldIdent.Name,
+					Type:   fieldType,
+					Bucket: name,
+					Doc:    field.Doc,
+				})
 			case *types.Array:
 				return fmt.Errorf("cannot have array type (use a slice)")
 			case *types.Slice:
@@ -275,14 +293,14 @@ func genStruct(ctx *context, name string, typ ast.Expr, doc *ast.CommentGroup) e
 
 					var seqTypeName string
 
-					if _, ok := ctx.jsonTypes[named]; ok {
+					if isRecordType(ctx, named) {
 						pkgName := named.Obj().Pkg().Name()
 						ru, n := utf8.DecodeRuneInString(pkgName)
 						seqTypeName = string(unicode.ToUpper(ru)) + pkgName[n:] + named.Obj().Name() + "Seq"
-						sch.JSONSeqTypes[seqTypeName] = elemType
+						sch.SeqOfRecordTypes[seqTypeName] = elemType
 					} else if _, ok := named.Underlying().(*types.Struct); ok {
 						seqTypeName = named.Obj().Name() + "Seq"
-						sch.SeqTypes[named.Obj().Name()] = true
+						sch.SeqOfBucketTypes[named.Obj().Name()] = true
 					} else {
 						return fmt.Errorf("unknown type %s", esprint(field.Type))
 					}
@@ -316,14 +334,14 @@ func genStruct(ctx *context, name string, typ ast.Expr, doc *ast.CommentGroup) e
 
 				var mapTypeName string
 
-				if _, ok := ctx.jsonTypes[named]; ok {
+				if isRecordType(ctx, named) {
 					pkgName := named.Obj().Pkg().Name()
 					ru, n := utf8.DecodeRuneInString(pkgName)
 					mapTypeName = string(unicode.ToUpper(ru)) + pkgName[n:] + named.Obj().Name() + "Map"
-					sch.JSONMapTypes[mapTypeName] = types.NewPointer(named)
+					sch.MapOfRecordTypes[mapTypeName] = types.NewPointer(named)
 				} else if _, ok := named.Underlying().(*types.Struct); ok {
 					mapTypeName = named.Obj().Name() + "Map"
-					sch.MapTypes[named.Obj().Name()] = true
+					sch.MapOfBucketTypes[named.Obj().Name()] = true
 				} else {
 					return fmt.Errorf("unknown type %s", esprint(field.Type))
 				}
@@ -342,6 +360,12 @@ func genStruct(ctx *context, name string, typ ast.Expr, doc *ast.CommentGroup) e
 		}
 	}
 	return nil
+}
+
+func isRecordType(ctx *context, t *types.Named) bool {
+	_, okJSON := ctx.jsonTypes[t]
+	_, okBin := ctx.binTypes[t]
+	return okJSON || okBin
 }
 
 func esprint(node interface{}) string {

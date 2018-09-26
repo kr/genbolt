@@ -12,6 +12,16 @@ const schemaTemplate = `
 		panic(err)
 	}
 	return v
+{{- else if isbintype . -}}
+	v := new({{typestring .Elem}})
+	if rec == nil {
+		return v
+	}
+	err := encoding.BinaryUnmarshaler(v).UnmarshalBinary(rec)
+	if err != nil {
+		panic(err)
+	}
+	return v
 {{- else if identical . (sliceof (basic "uint8")) -}}
 	v := make([]byte, len(rec))
 	copy(v, rec)
@@ -68,6 +78,11 @@ const schemaTemplate = `
 {{- define "put" -}}
 {{- if isjsontype . -}}
 	rec, err := json.Marshal(json.Marshaler(v))
+	if err != nil {
+		panic(err)
+	}
+{{- else if isbintype . -}}
+	rec, err := encoding.BinaryMarshaler(v).MarshalBinary()
 	if err != nil {
 		panic(err)
 	}
@@ -194,7 +209,7 @@ func (o *{{.Bucket}}) Put{{.Name}}(v {{typestring .Type}}) {
 }
 {{end}}
 
-{{range $type, $_ := .MapTypes}}
+{{range $type, $_ := .MapOfBucketTypes}}
 type {{$type}}Map struct {
 	db *bolt.Bucket
 }
@@ -213,7 +228,7 @@ func (o *{{$type}}Map) GetByString(key string) *{{$type}} {
 }
 {{end}}
 
-{{range $type, $_ := .SeqTypes}}
+{{range $type, $_ := .SeqOfBucketTypes}}
 type {{$type}}Seq struct {
 	db *bolt.Bucket
 }
@@ -237,7 +252,7 @@ func (o *{{$type}}Seq) Add() (*{{$type}}, uint64) {
 }
 {{end}}
 
-{{range $type, $elem := .JSONMapTypes}}
+{{range $type, $elem := .MapOfRecordTypes}}
 type {{$type}} struct {
 	db *bolt.Bucket
 }
@@ -267,7 +282,7 @@ func (o *{{$type}}) PutByString(key string, v {{typestring $elem}}) {
 }
 {{end}}
 
-{{range $type, $elem := .JSONSeqTypes}}
+{{range $type, $elem := .SeqOfRecordTypes}}
 type {{$type}} struct {
 	db *bolt.Bucket
 }
@@ -330,7 +345,7 @@ func bucket(db db, key []byte) *bolt.Bucket {
 }
 {{end}}
 
-{{if or .RecordFields .JSONMapTypes .JSONSeqTypes}}
+{{if or .RecordFields .MapOfRecordTypes .SeqOfRecordTypes}}
 func get(b *bolt.Bucket, key []byte) []byte {
 	if b == nil {
 		return nil

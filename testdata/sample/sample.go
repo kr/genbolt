@@ -29,3 +29,15 @@ type Stringer struct{}
 func (s *Stringer) String() string {
 	return ""
 }
+
+// Binary satisfies the encoding.BinaryMarshaler and
+// encoding.BinaryUnmarshaler interfaces.
+type Binary struct{}
+
+func (s *Binary) MarshalBinary() ([]byte, error) {
+	return nil, nil
+}
+
+func (s *Binary) UnmarshalBinary([]byte) error {
+	return nil
+}

@@ -38,17 +38,26 @@ holding a single number.
 Named types from other packages can be used,
 provided they're accompanied by
 a variable declaration in the schema
-asserting that they satisfy the interface json.Marshaler.
-Such types must also satisfy json.Unmarshaler,
+asserting that they satisfy either json.Marshaler
+or encoding.BinaryMarshaler.
+Such types must also satisfy json.Unmarshaler
+or encoding.BinaryUnmarshaler, respectively,
 but this does not need to appear in the schema.
 
-	var _ json.Marshaler = (*mypkg.MyType)(nil)
+	var (
+		_ json.Marshaler           = (*mypkg.MyType)(nil)
+		_ encoding.BinaryMarshaler = (*mypkg.OtherType)(nil)
+	)
 
 	type MyBucket struct {
-		MyField *mypkg.MyType
-		MySeq   []*mypkg.MyType
-		MyMap   map[string]*mypkg.MyType
+		MyField    *mypkg.MyType
+		OtherField *mypkg.MyType
+		MySeq      []*mypkg.MyType
+		MyMap      map[string]*mypkg.MyType
 	}
+
+Values of those types are marshaled when written
+and unmarshaled again when read.
 
 It is conventional to put a +build ignore directive
 in the schema file, so it can live in the same directory

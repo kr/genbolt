@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -12,14 +13,21 @@ import (
 	"time"
 )
 
+// Normally, these tests generate code from *.in.go and compare
+// the generated code with the contents of *.out.go.
+// Run 'go test -save' to save the generated code back to *.out.go.
+//
+// This is useful when making a deliberate change to the format
+// of the generated code. Instead of updating all the output files
+// by hand, you can use genbolt to do it automatically. Care must
+// be taken to avoid introducing bugs this way; use this flag only
+// when you have high confidence the change is safe, and only for
+// changes that would take a lot of work to do by hand.
+var flagSave = flag.Bool("save", false, "save generated code to *.out.go")
+
 func TestGen(t *testing.T) {
 	for _, name := range glob(t, "testdata/*.in.go") {
 		stem := strings.TrimSuffix(name, ".in.go")
-		want, err := ioutil.ReadFile(stem + ".out.go")
-		if err != nil {
-			t.Error(err)
-			continue
-		}
 
 		got, err := gen(name)
 		if err != nil {
@@ -27,6 +35,20 @@ func TestGen(t *testing.T) {
 			if got != nil {
 				t.Logf("output:\n%s", got)
 			}
+			continue
+		}
+
+		if *flagSave {
+			err := ioutil.WriteFile(stem+".out.go", got, 0644)
+			if err != nil {
+				t.Error(err)
+				continue
+			}
+		}
+
+		want, err := ioutil.ReadFile(stem + ".out.go")
+		if err != nil {
+			t.Error(err)
 			continue
 		}
 		d := diff(got, want)

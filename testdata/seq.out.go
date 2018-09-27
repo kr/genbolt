@@ -9,40 +9,89 @@ import bolt "github.com/coreos/bbolt"
 const _ = binary.MaxVarintLen16
 const _ = bolt.MaxKeySize
 
+// T is a bucket with a static set of elements.
+// Accessor methods read and write records
+// and open child buckets.
 type T struct {
 	db *bolt.Bucket
 }
 
+// Bucket returns o's underlying *bolt.Bucket object.
+// This can be useful to access low-level database functions
+// or other features not exposed by this generated code.
+//
+// Note, if o's transaction is read-only and the underlying
+// bucket has not previously been created in a writable
+// transaction, Bucket returns nil.
 func (o *T) Bucket() *bolt.Bucket {
 	return o.db
 }
 
+// U is a bucket with a static set of elements.
+// Accessor methods read and write records
+// and open child buckets.
 type U struct {
 	db *bolt.Bucket
 }
 
+// Bucket returns o's underlying *bolt.Bucket object.
+// This can be useful to access low-level database functions
+// or other features not exposed by this generated code.
+//
+// Note, if o's transaction is read-only and the underlying
+// bucket has not previously been created in a writable
+// transaction, Bucket returns nil.
 func (o *U) Bucket() *bolt.Bucket {
 	return o.db
 }
 
+// S gets the child bucket with key "S" from o.
+//
+// S creates a new bucket if none exists
+// and o's transaction is writable.
+// Regardless, it always returns a non-nil *SeqOfU;
+// if the bucket doesn't exist
+// and o's transaction is read-only, the returned value
+// represents an empty bucket.
 func (o *T) S() *SeqOfU {
 	return &SeqOfU{bucket(o.db, keyS)}
 }
 
+// SeqOfU is a bucket with sequential numeric keys,
+// holding child buckets of type U.
 type SeqOfU struct {
 	db *bolt.Bucket
 }
 
+// Bucket returns o's underlying *bolt.Bucket object.
+// This can be useful to access low-level database functions
+// or other features not exposed by this generated code.
+//
+// Note, if o's transaction is read-only and the underlying
+// bucket has not previously been created in a writable
+// transaction, Bucket returns nil.
 func (o *SeqOfU) Bucket() *bolt.Bucket {
 	return o.db
 }
 
+// Get gets child bucket n from o.
+//
+// It creates a new bucket if none exists
+// and o's transaction is writable.
+// Regardless, it always returns a non-nil *U;
+// if the bucket doesn't exist
+// and o's transaction is read-only, the returned value
+// represents an empty bucket.
 func (o *SeqOfU) Get(n uint64) *U {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)
 	return &U{bucket(o.db, key)}
 }
 
+// Add creates and returns a new, empty child bucket to o
+// with a new sequence number.
+//
+// It panics if called in a read-only transaction.
 func (o *SeqOfU) Add() (*U, uint64) {
 	n, err := o.db.NextSequence()
 	if err != nil {

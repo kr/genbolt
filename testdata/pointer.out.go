@@ -9,24 +9,53 @@ import bolt "github.com/coreos/bbolt"
 const _ = binary.MaxVarintLen16
 const _ = bolt.MaxKeySize
 
+// T is a bucket with a static set of elements.
+// Accessor methods read and write records
+// and open child buckets.
 type T struct {
 	db *bolt.Bucket
 }
 
+// Bucket returns o's underlying *bolt.Bucket object.
+// This can be useful to access low-level database functions
+// or other features not exposed by this generated code.
+//
+// Note, if o's transaction is read-only and the underlying
+// bucket has not previously been created in a writable
+// transaction, Bucket returns nil.
 func (o *T) Bucket() *bolt.Bucket {
 	return o.db
 }
 
+// U is a bucket with a static set of elements.
+// Accessor methods read and write records
+// and open child buckets.
 type U struct {
 	db *bolt.Bucket
 }
 
+// Bucket returns o's underlying *bolt.Bucket object.
+// This can be useful to access low-level database functions
+// or other features not exposed by this generated code.
+//
+// Note, if o's transaction is read-only and the underlying
+// bucket has not previously been created in a writable
+// transaction, Bucket returns nil.
 func (o *U) Bucket() *bolt.Bucket {
 	return o.db
 }
 
+// U gets the child bucket with key "U" from o.
+//
 // U is a U.
 // It is useful.
+//
+// U creates a new bucket if none exists
+// and o's transaction is writable.
+// Regardless, it always returns a non-nil *U;
+// if the bucket doesn't exist
+// and o's transaction is read-only, the returned value
+// represents an empty bucket.
 func (o *T) U() *U {
 	return &U{bucket(o.db, keyU)}
 }

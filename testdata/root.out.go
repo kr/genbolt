@@ -9,7 +9,14 @@ import bolt "github.com/coreos/bbolt"
 const _ = binary.MaxVarintLen16
 const _ = bolt.MaxKeySize
 
+// Root is a bucket with a static set of elements.
+//
 // Hello, this is the root.
+//
+// Accessor methods read and write records
+// and open child buckets.
+// See functions View and
+// Update to open transactions.
 type Root struct {
 	db *bolt.Tx
 }
@@ -21,23 +28,41 @@ func NewRoot(tx *bolt.Tx) *Root {
 	return &Root{tx}
 }
 
+// View opens a read-only transaction
+// and calls f with an instance of Root as the root bucket.
+// It returns the error returned by f.
 func View(db *bolt.DB, f func(*Root) error) error {
 	return db.View(func(tx *bolt.Tx) error {
 		return f(&Root{tx})
 	})
 }
 
+// Update opens a writable transaction
+// and calls f with an instance of Root as the root bucket,
+// then it commits the transaction.
+// It returns the error returned by f,
+// or any error committing to the database, if f was successful.
 func Update(db *bolt.DB, f func(*Root) error) error {
 	return db.Update(func(tx *bolt.Tx) error {
 		return f(&Root{tx})
 	})
 }
 
+// Tx returns o's underlying *bolt.Tx object.
+// This can be useful to access low-level database functions
+// or other features not exposed by this generated code.
 func (o *Root) Tx() *bolt.Tx {
 	return o.db
 }
 
+// RootFoo is a bucket with a static set of elements.
+//
 // RootFoo is a root with a longer name.
+//
+// Accessor methods read and write records
+// and open child buckets.
+// See functions ViewFoo and
+// UpdateFoo to open transactions.
 type RootFoo struct {
 	db *bolt.Tx
 }
@@ -49,70 +74,157 @@ func NewRootFoo(tx *bolt.Tx) *RootFoo {
 	return &RootFoo{tx}
 }
 
+// ViewFoo opens a read-only transaction
+// and calls f with an instance of RootFoo as the root bucket.
+// It returns the error returned by f.
 func ViewFoo(db *bolt.DB, f func(*RootFoo) error) error {
 	return db.View(func(tx *bolt.Tx) error {
 		return f(&RootFoo{tx})
 	})
 }
 
+// UpdateFoo opens a writable transaction
+// and calls f with an instance of RootFoo as the root bucket,
+// then it commits the transaction.
+// It returns the error returned by f,
+// or any error committing to the database, if f was successful.
 func UpdateFoo(db *bolt.DB, f func(*RootFoo) error) error {
 	return db.Update(func(tx *bolt.Tx) error {
 		return f(&RootFoo{tx})
 	})
 }
 
+// Tx returns o's underlying *bolt.Tx object.
+// This can be useful to access low-level database functions
+// or other features not exposed by this generated code.
 func (o *RootFoo) Tx() *bolt.Tx {
 	return o.db
 }
 
+// Rootbar is a bucket with a static set of elements.
+//
 // Rootbar isn't a root!
+//
+// Accessor methods read and write records
+// and open child buckets.
 type Rootbar struct {
 	db *bolt.Bucket
 }
 
+// Bucket returns o's underlying *bolt.Bucket object.
+// This can be useful to access low-level database functions
+// or other features not exposed by this generated code.
+//
+// Note, if o's transaction is read-only and the underlying
+// bucket has not previously been created in a writable
+// transaction, Bucket returns nil.
 func (o *Rootbar) Bucket() *bolt.Bucket {
 	return o.db
 }
 
+// T is a bucket with a static set of elements.
+// Accessor methods read and write records
+// and open child buckets.
 type T struct {
 	db *bolt.Bucket
 }
 
+// Bucket returns o's underlying *bolt.Bucket object.
+// This can be useful to access low-level database functions
+// or other features not exposed by this generated code.
+//
+// Note, if o's transaction is read-only and the underlying
+// bucket has not previously been created in a writable
+// transaction, Bucket returns nil.
 func (o *T) Bucket() *bolt.Bucket {
 	return o.db
 }
 
+// F gets the child bucket with key "F" from o.
+//
 // F, what a lovely field, F.
+//
+// F creates a new bucket if none exists
+// and o's transaction is writable.
+// Regardless, it always returns a non-nil *T;
+// if the bucket doesn't exist
+// and o's transaction is read-only, the returned value
+// represents an empty bucket.
 func (o *Root) F() *T {
 	return &T{bucket(o.db, keyF)}
 }
 
+// S gets the child bucket with key "S" from o.
+//
+// S creates a new bucket if none exists
+// and o's transaction is writable.
+// Regardless, it always returns a non-nil *SeqOfT;
+// if the bucket doesn't exist
+// and o's transaction is read-only, the returned value
+// represents an empty bucket.
 func (o *Root) S() *SeqOfT {
 	return &SeqOfT{bucket(o.db, keyS)}
 }
 
+// F gets the child bucket with key "F" from o.
+//
+// F creates a new bucket if none exists
+// and o's transaction is writable.
+// Regardless, it always returns a non-nil *T;
+// if the bucket doesn't exist
+// and o's transaction is read-only, the returned value
+// represents an empty bucket.
 func (o *RootFoo) F() *T {
 	return &T{bucket(o.db, keyF)}
 }
 
+// F gets the child bucket with key "F" from o.
+//
+// F creates a new bucket if none exists
+// and o's transaction is writable.
+// Regardless, it always returns a non-nil *T;
+// if the bucket doesn't exist
+// and o's transaction is read-only, the returned value
+// represents an empty bucket.
 func (o *Rootbar) F() *T {
 	return &T{bucket(o.db, keyF)}
 }
 
+// SeqOfT is a bucket with sequential numeric keys,
+// holding child buckets of type T.
 type SeqOfT struct {
 	db *bolt.Bucket
 }
 
+// Bucket returns o's underlying *bolt.Bucket object.
+// This can be useful to access low-level database functions
+// or other features not exposed by this generated code.
+//
+// Note, if o's transaction is read-only and the underlying
+// bucket has not previously been created in a writable
+// transaction, Bucket returns nil.
 func (o *SeqOfT) Bucket() *bolt.Bucket {
 	return o.db
 }
 
+// Get gets child bucket n from o.
+//
+// It creates a new bucket if none exists
+// and o's transaction is writable.
+// Regardless, it always returns a non-nil *T;
+// if the bucket doesn't exist
+// and o's transaction is read-only, the returned value
+// represents an empty bucket.
 func (o *SeqOfT) Get(n uint64) *T {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)
 	return &T{bucket(o.db, key)}
 }
 
+// Add creates and returns a new, empty child bucket to o
+// with a new sequence number.
+//
+// It panics if called in a read-only transaction.
 func (o *SeqOfT) Add() (*T, uint64) {
 	n, err := o.db.NextSequence()
 	if err != nil {

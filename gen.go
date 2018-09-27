@@ -63,6 +63,7 @@ func gen(name string) (code []byte, err error) {
 			"identical":  types.Identical,
 			"basic":      basicType,
 			"sliceof":    types.NewSlice,
+			"ispointer":  isPointer,
 		}).
 		Parse(schemaTemplate)
 	if err != nil {
@@ -392,6 +393,11 @@ func isReserved(name string) bool {
 		return true
 	}
 	return false
+}
+
+func isPointer(t types.Type) bool {
+	_, ok := t.(*types.Pointer)
+	return ok
 }
 
 var basicTypes = make(map[string]*types.Basic)

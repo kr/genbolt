@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 // Normally, these tests generate code from *.in.go and compare
@@ -88,7 +87,6 @@ func TestRun(t *testing.T) {
 			c.Stderr = os.Stderr
 			err = c.Run()
 			if err != nil {
-				time.Sleep(time.Hour)
 				t.Fatal(err)
 			}
 		})

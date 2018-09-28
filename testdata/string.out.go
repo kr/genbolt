@@ -9,20 +9,33 @@ import bolt "github.com/coreos/bbolt"
 const _ = binary.MaxVarintLen16
 const _ = bolt.MaxKeySize
 
+// T is a bucket with a static set of elements.
+// Accessor methods read and write records
+// and open child buckets.
 type T struct {
 	db *bolt.Bucket
 }
 
+// Bucket returns o's underlying *bolt.Bucket object.
+// This can be useful to access low-level database functions
+// or other features not exposed by this generated code.
+//
+// Note, if o's transaction is read-only and the underlying
+// bucket has not previously been created in a writable
+// transaction, Bucket returns nil.
 func (o *T) Bucket() *bolt.Bucket {
 	return o.db
 }
 
+// S reads the record stored under key "S".
+// If no record has been stored, S returns
+// the zero value.
 func (o *T) S() string {
 	rec := get(o.db, keyS)
 	return string(rec)
 }
 
-// PutS stores v as the value of S.
+// PutS stores v as a record under the key "S".
 func (o *T) PutS(v string) {
 	rec := []byte(v)
 	put(o.db, keyS, rec)

@@ -11,26 +11,57 @@ import sample "github.com/kr/genbolt/testdata/sample"
 const _ = binary.MaxVarintLen16
 const _ = bolt.MaxKeySize
 
+// T is a bucket with a static set of elements.
+// Accessor methods read and write records
+// and open child buckets.
 type T struct {
 	db *bolt.Bucket
 }
 
+// Bucket returns o's underlying *bolt.Bucket object.
+// This can be useful to access low-level database functions
+// or other features not exposed by this generated code.
+//
+// Note, if o's transaction is read-only and the underlying
+// bucket has not previously been created in a writable
+// transaction, Bucket returns nil.
 func (o *T) Bucket() *bolt.Bucket {
 	return o.db
 }
 
+// B gets the child bucket with key "B" from o.
+//
+// B creates a new bucket if none exists
+// and o's transaction is writable.
+// Regardless, it always returns a non-nil *MapOfSampleBinary;
+// if the bucket doesn't exist
+// and o's transaction is read-only, the returned value
+// represents an empty bucket.
 func (o *T) B() *MapOfSampleBinary {
 	return &MapOfSampleBinary{bucket(o.db, keyB)}
 }
 
+// MapOfSampleBinary is a bucket with arbitrary keys,
+// holding records of type *sample.Binary.
 type MapOfSampleBinary struct {
 	db *bolt.Bucket
 }
 
+// Bucket returns o's underlying *bolt.Bucket object.
+// This can be useful to access low-level database functions
+// or other features not exposed by this generated code.
+//
+// Note, if o's transaction is read-only and the underlying
+// bucket has not previously been created in a writable
+// transaction, Bucket returns nil.
 func (o *MapOfSampleBinary) Bucket() *bolt.Bucket {
 	return o.db
 }
 
+// Get reads the record stored in o under the given key.
+//
+// If no record has been stored, it returns
+// a pointer to the zero value.
 func (o *MapOfSampleBinary) Get(key []byte) *sample.Binary {
 	rec := get(o.db, key)
 	v := new(sample.Binary)
@@ -44,10 +75,12 @@ func (o *MapOfSampleBinary) Get(key []byte) *sample.Binary {
 	return v
 }
 
+// GetByString is equivalent to o.Get([]byte(key)).
 func (o *MapOfSampleBinary) GetByString(key string) *sample.Binary {
 	return o.Get([]byte(key))
 }
 
+// Put stores v in o as a record under the given key.
 func (o *MapOfSampleBinary) Put(key []byte, v *sample.Binary) {
 	rec, err := encoding.BinaryMarshaler(v).MarshalBinary()
 	if err != nil {
@@ -56,6 +89,7 @@ func (o *MapOfSampleBinary) Put(key []byte, v *sample.Binary) {
 	put(o.db, key, rec)
 }
 
+// PutByString is equivalent to o.Put([]byte(key), v).
 func (o *MapOfSampleBinary) PutByString(key string, v *sample.Binary) {
 	o.Put([]byte(key), v)
 }

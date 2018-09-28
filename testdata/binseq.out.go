@@ -11,26 +11,57 @@ import sample "github.com/kr/genbolt/testdata/sample"
 const _ = binary.MaxVarintLen16
 const _ = bolt.MaxKeySize
 
+// T is a bucket with a static set of elements.
+// Accessor methods read and write records
+// and open child buckets.
 type T struct {
 	db *bolt.Bucket
 }
 
+// Bucket returns o's underlying *bolt.Bucket object.
+// This can be useful to access low-level database functions
+// or other features not exposed by this generated code.
+//
+// Note, if o's transaction is read-only and the underlying
+// bucket has not previously been created in a writable
+// transaction, Bucket returns nil.
 func (o *T) Bucket() *bolt.Bucket {
 	return o.db
 }
 
+// B gets the child bucket with key "B" from o.
+//
+// B creates a new bucket if none exists
+// and o's transaction is writable.
+// Regardless, it always returns a non-nil *SeqOfSampleBinary;
+// if the bucket doesn't exist
+// and o's transaction is read-only, the returned value
+// represents an empty bucket.
 func (o *T) B() *SeqOfSampleBinary {
 	return &SeqOfSampleBinary{bucket(o.db, keyB)}
 }
 
+// SeqOfSampleBinary is a bucket with sequential numeric keys,
+// holding records of type *sample.Binary.
 type SeqOfSampleBinary struct {
 	db *bolt.Bucket
 }
 
+// Bucket returns o's underlying *bolt.Bucket object.
+// This can be useful to access low-level database functions
+// or other features not exposed by this generated code.
+//
+// Note, if o's transaction is read-only and the underlying
+// bucket has not previously been created in a writable
+// transaction, Bucket returns nil.
 func (o *SeqOfSampleBinary) Bucket() *bolt.Bucket {
 	return o.db
 }
 
+// Get reads the record stored in o under sequence number n.
+//
+// If no record has been stored, it returns
+// a pointer to the zero value.
 func (o *SeqOfSampleBinary) Get(n uint64) *sample.Binary {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)
@@ -46,9 +77,9 @@ func (o *SeqOfSampleBinary) Get(n uint64) *sample.Binary {
 	return v
 }
 
-// Add adds v to the sequence.
+// Add stores v in o under a new sequence number.
 // It writes the new sequence number to *np
-// before marshaling v. Thus, it is okay for
+// before marshaling v. It is okay for
 // np to point to a field inside v, to store
 // the sequence number in the new record.
 func (o *SeqOfSampleBinary) Add(v *sample.Binary, np *uint64) {
@@ -60,6 +91,7 @@ func (o *SeqOfSampleBinary) Add(v *sample.Binary, np *uint64) {
 	o.Put(n, v)
 }
 
+// Put stores v in o as a record under sequence number n.
 func (o *SeqOfSampleBinary) Put(n uint64, v *sample.Binary) {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)

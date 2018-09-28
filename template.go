@@ -135,11 +135,20 @@ const _ = bolt.MaxKeySize
 {{range .StructTypes}}
 {{ $level := or (and .IsRoot "Tx") "Bucket" }}
 
-{{- if .Doc}}
-{{- range .Doc.List}}
+// {{.Name}} is a bucket with a static set of elements.
+{{if .Doc -}}
+//
+{{range .Doc.List -}}
 {{.Text}}
-{{- end}}
-{{- end}}
+{{end -}}
+//
+{{end -}}
+// Accessor methods read and write records
+// and open child buckets.
+{{if .IsRoot -}}
+// See functions View{{trimprefix .Name "Root"}} and
+// Update{{trimprefix .Name "Root"}} to open transactions.
+{{end -}}
 type {{.Name}} struct {
 	db *bolt.{{$level}}
 }
@@ -156,12 +165,20 @@ func New{{.Name}}(tx *bolt.Tx) *{{.Name}} {
 	return &{{.Name}}{tx}
 }
 
+// View{{trimprefix .Name "Root"}} opens a read-only transaction
+// and calls f with an instance of {{.Name}} as the root bucket.
+// It returns the error returned by f.
 func View{{trimprefix .Name "Root"}}(db *bolt.DB, f func(*{{.Name}}) error) error {
 	return db.View(func(tx *bolt.Tx) error {
 		return f(&{{.Name}}{tx})
 	})
 }
 
+// Update{{trimprefix .Name "Root"}} opens a writable transaction
+// and calls f with an instance of {{.Name}} as the root bucket,
+// then it commits the transaction.
+// It returns the error returned by f,
+// or any error committing to the database, if f was successful.
 func Update{{trimprefix .Name "Root"}}(db *bolt.DB, f func(*{{.Name}}) error) error {
 	return db.Update(func(tx *bolt.Tx) error {
 		return f(&{{.Name}}{tx})
@@ -169,35 +186,61 @@ func Update{{trimprefix .Name "Root"}}(db *bolt.DB, f func(*{{.Name}}) error) er
 }
 {{end}}
 
+// {{$level}} returns o's underlying *bolt.{{$level}} object.
+// This can be useful to access low-level database functions
+// or other features not exposed by this generated code.
+{{if not .IsRoot -}}
+//
+// Note, if o's transaction is read-only and the underlying
+// bucket has not previously been created in a writable
+// transaction, Bucket returns nil.
+{{end -}}
 func (o *{{.Name}}) {{$level}}() *bolt.{{$level}} {
 	return o.db
 }
 {{end}}
 
 {{range .BucketFields}}
-{{if .Doc.Text -}}
+// {{.Name}} gets the child bucket with key {{printf "%q" .Name}} from o.
+{{if .Doc -}}
+//
 {{range .Doc.List -}}
 {{.Text}}
 {{end -}}
 {{end -}}
+//
+// {{.Name}} creates a new bucket if none exists
+// and o's transaction is writable.
+// Regardless, it always returns a non-nil {{typestring .Type}};
+// if the bucket doesn't exist
+// and o's transaction is read-only, the returned value
+// represents an empty bucket.
 func (o *{{.Bucket}}) {{.Name}}() {{typestring .Type}} {
 	return &{{typestring .Type.Elem}}{bucket(o.db, key{{.Name}})}
 }
 {{end}}
 
 {{range .RecordFields}}
-{{if .Doc.Text -}}
+// {{.Name}} reads the record stored under key {{printf "%q" .Name}}.
+{{if .Doc -}}
+//
 {{range .Doc.List -}}
 {{.Text}}
 {{end -}}
+//
 {{end -}}
+// If no record has been stored, {{.Name}} returns
+{{if ispointer .Type -}}
+// a pointer to
+{{end -}}
+// the zero value.
 func (o *{{.Bucket}}) {{.Name}}() {{typestring .Type}} {
 	rec := get(o.db, key{{.Name}})
 	{{template "get" .Type}}
 }
 
-// Put{{.Name}} stores v as the value of {{.Name}}.
-{{if .Doc.Text -}}
+// Put{{.Name}} stores v as a record under the key {{printf "%q" .Name}}.
+{{if .Doc -}}
 //
 {{range .Doc.List -}}
 {{.Text}}
@@ -210,18 +253,36 @@ func (o *{{.Bucket}}) Put{{.Name}}(v {{typestring .Type}}) {
 {{end}}
 
 {{range $type, $elem := .MapOfBucketTypes}}
+// {{$type}} is a bucket with arbitrary keys,
+// holding child buckets of type {{$elem}}.
 type {{$type}} struct {
 	db *bolt.Bucket
 }
 
+// Bucket returns o's underlying *bolt.Bucket object.
+// This can be useful to access low-level database functions
+// or other features not exposed by this generated code.
+//
+// Note, if o's transaction is read-only and the underlying
+// bucket has not previously been created in a writable
+// transaction, Bucket returns nil.
 func (o *{{$type}}) Bucket() *bolt.Bucket {
 	return o.db
 }
 
+// Get gets the child bucket with the given key from o.
+//
+// It creates a new bucket if none exists
+// and o's transaction is writable.
+// Regardless, it always returns a non-nil *{{$elem}};
+// if the bucket doesn't exist
+// and o's transaction is read-only, the returned value
+// represents an empty bucket.
 func (o *{{$type}}) Get(key []byte) *{{$elem}} {
 	return &{{$elem}}{bucket(o.db, key)}
 }
 
+// GetByString is equivalent to o.Get([]byte(key)).
 func (o *{{$type}}) GetByString(key string) *{{$elem}} {
 	{{/* TODO(kr): consider unsafe conversion */ -}}
 	return &{{$elem}}{bucket(o.db, []byte(key))}
@@ -229,20 +290,41 @@ func (o *{{$type}}) GetByString(key string) *{{$elem}} {
 {{end}}
 
 {{range $type, $elem := .SeqOfBucketTypes}}
+// {{$type}} is a bucket with sequential numeric keys,
+// holding child buckets of type {{$elem}}.
 type {{$type}} struct {
 	db *bolt.Bucket
 }
 
+// Bucket returns o's underlying *bolt.Bucket object.
+// This can be useful to access low-level database functions
+// or other features not exposed by this generated code.
+//
+// Note, if o's transaction is read-only and the underlying
+// bucket has not previously been created in a writable
+// transaction, Bucket returns nil.
 func (o *{{$type}}) Bucket() *bolt.Bucket {
 	return o.db
 }
 
+// Get gets child bucket n from o.
+//
+// It creates a new bucket if none exists
+// and o's transaction is writable.
+// Regardless, it always returns a non-nil *{{$elem}};
+// if the bucket doesn't exist
+// and o's transaction is read-only, the returned value
+// represents an empty bucket.
 func (o *{{$type}}) Get(n uint64) *{{$elem}} {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)
 	return &{{$elem}}{bucket(o.db, key)}
 }
 
+// Add creates and returns a new, empty child bucket to o
+// with a new sequence number.
+//
+// It panics if called in a read-only transaction.
 func (o *{{$type}}) Add() (*{{$elem}}, uint64) {
 	n, err := o.db.NextSequence()
 	if err != nil {
@@ -253,29 +335,45 @@ func (o *{{$type}}) Add() (*{{$elem}}, uint64) {
 {{end}}
 
 {{range $type, $elem := .MapOfRecordTypes}}
+// {{$type}} is a bucket with arbitrary keys,
+// holding records of type {{typestring $elem}}.
 type {{$type}} struct {
 	db *bolt.Bucket
 }
 
+// Bucket returns o's underlying *bolt.Bucket object.
+// This can be useful to access low-level database functions
+// or other features not exposed by this generated code.
+//
+// Note, if o's transaction is read-only and the underlying
+// bucket has not previously been created in a writable
+// transaction, Bucket returns nil.
 func (o *{{$type}}) Bucket() *bolt.Bucket {
 	return o.db
 }
 
+// Get reads the record stored in o under the given key.
+//
+// If no record has been stored, it returns
+// a pointer to the zero value.
 func (o *{{$type}}) Get(key []byte) {{typestring $elem}} {
 	rec := get(o.db, key)
 	{{template "get" $elem}}
 }
 
+// GetByString is equivalent to o.Get([]byte(key)).
 func (o *{{$type}}) GetByString(key string) {{typestring $elem}} {
 	{{/* TODO(kr): consider unsafe conversion */ -}}
 	return o.Get([]byte(key))
 }
 
+// Put stores v in o as a record under the given key.
 func (o *{{$type}}) Put(key []byte, v {{typestring $elem}}) {
 	{{template "put" $elem}}
 	put(o.db, key, rec)
 }
 
+// PutByString is equivalent to o.Put([]byte(key), v).
 func (o *{{$type}}) PutByString(key string, v {{typestring $elem}}) {
 	{{/* TODO(kr): consider unsafe conversion */ -}}
 	o.Put([]byte(key), v)
@@ -283,14 +381,27 @@ func (o *{{$type}}) PutByString(key string, v {{typestring $elem}}) {
 {{end}}
 
 {{range $type, $elem := .SeqOfRecordTypes}}
+// {{$type}} is a bucket with sequential numeric keys,
+// holding records of type {{typestring $elem}}.
 type {{$type}} struct {
 	db *bolt.Bucket
 }
 
+// Bucket returns o's underlying *bolt.Bucket object.
+// This can be useful to access low-level database functions
+// or other features not exposed by this generated code.
+//
+// Note, if o's transaction is read-only and the underlying
+// bucket has not previously been created in a writable
+// transaction, Bucket returns nil.
 func (o *{{$type}}) Bucket() *bolt.Bucket {
 	return o.db
 }
 
+// Get reads the record stored in o under sequence number n.
+//
+// If no record has been stored, it returns
+// a pointer to the zero value.
 func (o *{{$type}}) Get(n uint64) {{typestring $elem}} {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)
@@ -298,9 +409,9 @@ func (o *{{$type}}) Get(n uint64) {{typestring $elem}} {
 	{{template "get" $elem}}
 }
 
-// Add adds v to the sequence.
+// Add stores v in o under a new sequence number.
 // It writes the new sequence number to *np
-// before marshaling v. Thus, it is okay for
+// before marshaling v. It is okay for
 // np to point to a field inside v, to store
 // the sequence number in the new record.
 func (o *{{$type}}) Add(v {{typestring $elem}}, np *uint64) {
@@ -312,6 +423,7 @@ func (o *{{$type}}) Add(v {{typestring $elem}}, np *uint64) {
 	o.Put(n, v)
 }
 
+// Put stores v in o as a record under sequence number n.
 func (o *{{$type}}) Put(n uint64, v {{typestring $elem}}) {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)

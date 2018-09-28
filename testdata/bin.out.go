@@ -11,14 +11,28 @@ import sample "github.com/kr/genbolt/testdata/sample"
 const _ = binary.MaxVarintLen16
 const _ = bolt.MaxKeySize
 
+// T is a bucket with a static set of elements.
+// Accessor methods read and write records
+// and open child buckets.
 type T struct {
 	db *bolt.Bucket
 }
 
+// Bucket returns o's underlying *bolt.Bucket object.
+// This can be useful to access low-level database functions
+// or other features not exposed by this generated code.
+//
+// Note, if o's transaction is read-only and the underlying
+// bucket has not previously been created in a writable
+// transaction, Bucket returns nil.
 func (o *T) Bucket() *bolt.Bucket {
 	return o.db
 }
 
+// B reads the record stored under key "B".
+// If no record has been stored, B returns
+// a pointer to
+// the zero value.
 func (o *T) B() *sample.Binary {
 	rec := get(o.db, keyB)
 	v := new(sample.Binary)
@@ -32,7 +46,7 @@ func (o *T) B() *sample.Binary {
 	return v
 }
 
-// PutB stores v as the value of B.
+// PutB stores v as a record under the key "B".
 func (o *T) PutB(v *sample.Binary) {
 	rec, err := encoding.BinaryMarshaler(v).MarshalBinary()
 	if err != nil {

@@ -237,130 +237,139 @@ func genStruct(ctx *context, name string, typ ast.Expr, doc *ast.CommentGroup) e
 			}
 			sch.Keys[fieldIdent.Name] = true
 
-			switch fieldType := ctx.pkg.TypesInfo.Defs[fieldIdent].Type().(type) {
-			default:
-				return fmt.Errorf("unsupported type %v", esprint(field.Type))
-			case *types.Basic:
-				if isRoot {
-					return fmt.Errorf("unsupported root field type %s", esprint(field.Type))
-				}
-				sch.RecordFields = append(sch.RecordFields, &schemaField{
-					Name:   fieldIdent.Name,
-					Type:   fieldType,
-					Bucket: name,
-					Doc:    field.Doc,
-				})
-			case *types.Named:
-				return fmt.Errorf("unsupported type %s (try *%s instead?)", fieldIdent.Name, fieldType.String())
-			case *types.Pointer:
-				named, ok := fieldType.Elem().(*types.Named)
-				if !ok {
-					return fmt.Errorf("unknown type %s", esprint(field.Type))
-				}
-
-				var fields *[]*schemaField
-				if isRecordType(ctx, named) {
-					fields = &sch.RecordFields
-				} else if _, ok := named.Underlying().(*types.Struct); ok {
-					fields = &sch.BucketFields
-				} else {
-					return fmt.Errorf("unknown type %s", esprint(field.Type))
-				}
-
-				*fields = append(*fields, &schemaField{
-					Name:   fieldIdent.Name,
-					Type:   fieldType,
-					Bucket: name,
-					Doc:    field.Doc,
-				})
-			case *types.Array:
-				return fmt.Errorf("cannot have array type (use a slice)")
-			case *types.Slice:
-				switch elemType := fieldType.Elem().(type) {
-				default:
-					return fmt.Errorf("slice element must be pointer to struct or basic type")
-				case *types.Basic:
-					sch.RecordFields = append(sch.RecordFields, &schemaField{
-						Name:   fieldIdent.Name,
-						Type:   fieldType,
-						Bucket: name,
-						Doc:    field.Doc,
-					})
-				case *types.Pointer:
-					named, ok := elemType.Elem().(*types.Named)
-					if !ok {
-						return fmt.Errorf("unknown type %s", esprint(field.Type))
-					}
-
-					var seqTypeName string
-
-					if isRecordType(ctx, named) {
-						pkgName := named.Obj().Pkg().Name()
-						ru, n := utf8.DecodeRuneInString(pkgName)
-						seqTypeName = "SeqOf" + string(unicode.ToUpper(ru)) + pkgName[n:] + named.Obj().Name()
-						sch.SeqOfRecordTypes[seqTypeName] = elemType
-					} else if _, ok := named.Underlying().(*types.Struct); ok {
-						seqTypeName = "SeqOf" + named.Obj().Name()
-						sch.SeqOfBucketTypes[seqTypeName] = named.Obj().Name()
-					} else {
-						return fmt.Errorf("unknown type %s", esprint(field.Type))
-					}
-
-					sch.BucketFields = append(sch.BucketFields, &schemaField{
-						Name: fieldIdent.Name,
-						Type: types.NewPointer(types.NewNamed(
-							types.NewTypeName(0, ctx.pkg.Types, seqTypeName, nil),
-							types.Typ[types.Invalid],
-							nil,
-						)),
-						Bucket: name,
-						Doc:    field.Doc,
-					})
-				}
-			case *types.Map:
-				// TODO(kr): allow numeric types as map keys too
-				keyType, ok := fieldType.Key().(*types.Basic)
-				if !ok || keyType.Kind() != types.String {
-					return fmt.Errorf("map key must be string")
-				}
-				ptr, ok := fieldType.Elem().(*types.Pointer)
-				if !ok {
-					return fmt.Errorf("map value must be pointer to named struct type")
-				}
-
-				named, ok := ptr.Elem().(*types.Named)
-				if !ok {
-					return fmt.Errorf("unknown type %s", esprint(field.Type))
-				}
-
-				var mapTypeName string
-
-				if isRecordType(ctx, named) {
-					pkgName := named.Obj().Pkg().Name()
-					ru, n := utf8.DecodeRuneInString(pkgName)
-					mapTypeName = "MapOf" + string(unicode.ToUpper(ru)) + pkgName[n:] + named.Obj().Name()
-					sch.MapOfRecordTypes[mapTypeName] = types.NewPointer(named)
-				} else if _, ok := named.Underlying().(*types.Struct); ok {
-					mapTypeName = "MapOf" + named.Obj().Name()
-					sch.MapOfBucketTypes[mapTypeName] = named.Obj().Name()
-				} else {
-					return fmt.Errorf("unknown type %s", esprint(field.Type))
-				}
-
-				sch.BucketFields = append(sch.BucketFields, &schemaField{
-					Name: fieldIdent.Name,
-					Type: types.NewPointer(types.NewNamed(
-						types.NewTypeName(0, ctx.pkg.Types, mapTypeName, nil),
-						types.Typ[types.Invalid],
-						nil,
-					)),
-					Bucket: name,
-					Doc:    field.Doc,
-				})
+			fieldType := ctx.pkg.TypesInfo.Defs[fieldIdent].Type()
+			dbType, isRec, err := genType(ctx, fieldType)
+			if err != nil {
+				return err
 			}
+
+			if isRoot && isRec {
+				return fmt.Errorf("unsupported root field type %v", fieldType)
+			}
+
+			l := &sch.BucketFields
+			if isRec {
+				l = &sch.RecordFields
+			}
+			*l = append(*l, &schemaField{
+				Name:   fieldIdent.Name,
+				Type:   dbType,
+				Bucket: name,
+				Doc:    field.Doc,
+			})
 		}
 	}
 	return nil
+}
+
+// genType does two things:
+//   1. it adds an entry to one of the MapOfXTypes or
+//      SeqOfXTypes, if necessary
+//   2. it returns the database type for the field
+//      (which may or may not be the same as fieldType)
+func genType(ctx *context, fieldType types.Type) (dbType types.Type, isRec bool, err error) {
+	switch fieldType := fieldType.(type) {
+	default:
+		return nil, false, fmt.Errorf("type %v unsupported", fieldType)
+	case *types.Named:
+		return nil, false, fmt.Errorf("type %v unsupported (try %v instead?)", fieldType, types.NewPointer(fieldType))
+	case *types.Array:
+		return nil, false, fmt.Errorf("type %v unsupported (try %v instead?)", fieldType, types.NewSlice(fieldType.Elem()))
+	case *types.Basic:
+		if !isSupportedBasic(fieldType) {
+			return nil, false, fmt.Errorf("type %v unsupported", fieldType)
+		}
+		return fieldType, true, nil
+	case *types.Pointer:
+		named, ok := fieldType.Elem().(*types.Named)
+		if !ok {
+			return nil, false, fmt.Errorf("unknown type %v", fieldType)
+		}
+
+		isRec = isRecordType(ctx, named)
+		if !isRec && !isBucketType(ctx, named) {
+			return nil, false, fmt.Errorf("unknown type %v", fieldType)
+		}
+
+		return fieldType, isRec, nil
+	case *types.Slice:
+		switch elemType := fieldType.Elem().(type) {
+		default:
+			return nil, false, fmt.Errorf("slice element must be pointer to struct or basic type")
+		case *types.Basic:
+			if !isSupportedBasic(elemType) {
+				return nil, false, fmt.Errorf("type %v unsupported", elemType)
+			}
+			return fieldType, true, nil
+		case *types.Pointer:
+			named, ok := elemType.Elem().(*types.Named)
+			if !ok {
+				return nil, false, fmt.Errorf("type %v unsupported", elemType)
+			}
+
+			var seqTypeName string
+
+			if isRecordType(ctx, named) {
+				pkgName := named.Obj().Pkg().Name()
+				ru, n := utf8.DecodeRuneInString(pkgName)
+				seqTypeName = "SeqOf" + string(unicode.ToUpper(ru)) + pkgName[n:] + named.Obj().Name()
+				ctx.sch.SeqOfRecordTypes[seqTypeName] = elemType
+			} else if _, ok := named.Underlying().(*types.Struct); ok {
+				seqTypeName = "SeqOf" + named.Obj().Name()
+				ctx.sch.SeqOfBucketTypes[seqTypeName] = named.Obj().Name()
+			} else {
+				return nil, false, fmt.Errorf("type %s unsupported", fieldType)
+			}
+
+			dbType = types.NewPointer(types.NewNamed(
+				types.NewTypeName(0, ctx.pkg.Types, seqTypeName, nil),
+				types.Typ[types.Invalid],
+				nil,
+			))
+			return dbType, false, nil
+		}
+	case *types.Map:
+		// TODO(kr): allow numeric types as map keys too
+		keyType, ok := fieldType.Key().(*types.Basic)
+		if !ok || keyType.Kind() != types.String {
+			return nil, false, fmt.Errorf("map key must be string")
+		}
+		ptr, ok := fieldType.Elem().(*types.Pointer)
+		if !ok {
+			return nil, false, fmt.Errorf("map value must be pointer to named struct type")
+		}
+
+		named, ok := ptr.Elem().(*types.Named)
+		if !ok {
+			return nil, false, fmt.Errorf("type %s unsupported", fieldType)
+		}
+
+		var mapTypeName string
+
+		if isRecordType(ctx, named) {
+			pkgName := named.Obj().Pkg().Name()
+			ru, n := utf8.DecodeRuneInString(pkgName)
+			mapTypeName = "MapOf" + string(unicode.ToUpper(ru)) + pkgName[n:] + named.Obj().Name()
+			ctx.sch.MapOfRecordTypes[mapTypeName] = types.NewPointer(named)
+		} else if _, ok := named.Underlying().(*types.Struct); ok {
+			mapTypeName = "MapOf" + named.Obj().Name()
+			ctx.sch.MapOfBucketTypes[mapTypeName] = named.Obj().Name()
+		} else {
+			return nil, false, fmt.Errorf("type %s unsupported", fieldType)
+		}
+
+		dbType = types.NewPointer(types.NewNamed(
+			types.NewTypeName(0, ctx.pkg.Types, mapTypeName, nil),
+			types.Typ[types.Invalid],
+			nil,
+		))
+		return dbType, false, nil
+	}
+}
+
+func isBucketType(ctx *context, t *types.Named) bool {
+	_, ok := t.Underlying().(*types.Struct)
+	return ok && t.Obj().Pkg().Path() == ctx.pkg.Types.Path()
 }
 
 func isRecordType(ctx *context, t *types.Named) bool {
@@ -375,16 +384,14 @@ func esprint(node interface{}) string {
 	return b.String()
 }
 
-func isBasic(scope *types.Scope, name string) bool {
-	obj := scope.Lookup(name)
-	if obj == nil && scope == types.Universe {
-		return false
+func isSupportedBasic(t *types.Basic) bool {
+	switch t.Kind() {
+	case types.Bool, types.String,
+		types.Int8, types.Int16, types.Int32, types.Int64,
+		types.Uint8, types.Uint16, types.Uint32, types.Uint64:
+		return true
 	}
-	if obj == nil {
-		return isBasic(types.Universe, name)
-	}
-	_, ok := obj.Type().(*types.Basic)
-	return ok
+	return false
 }
 
 func isReserved(name string) bool {

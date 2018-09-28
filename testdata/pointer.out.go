@@ -71,6 +71,9 @@ type db interface {
 }
 
 func bucket(db db, key []byte) *bolt.Bucket {
+	if bu, ok := db.(*bolt.Bucket); ok && bu == nil {
+		return nil // can happen in read-only txs
+	}
 	if !db.Writable() {
 		return db.Bucket(key)
 	}

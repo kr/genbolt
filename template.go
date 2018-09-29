@@ -355,7 +355,10 @@ func (o *{{$type}}) Bucket() *bolt.Bucket {
 // Get reads the record stored in o under the given key.
 //
 // If no record has been stored, it returns
-// a pointer to the zero value.
+{{if ispointer $elem -}}
+// a pointer to
+{{end -}}
+// the zero value.
 func (o *{{$type}}) Get(key []byte) {{typestring $elem}} {
 	rec := get(o.db, key)
 	{{template "get" $elem}}
@@ -401,7 +404,10 @@ func (o *{{$type}}) Bucket() *bolt.Bucket {
 // Get reads the record stored in o under sequence number n.
 //
 // If no record has been stored, it returns
-// a pointer to the zero value.
+{{if ispointer $elem -}}
+// a pointer to
+{{end -}}
+// the zero value.
 func (o *{{$type}}) Get(n uint64) {{typestring $elem}} {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)

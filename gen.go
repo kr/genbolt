@@ -42,8 +42,8 @@ func gen(name string) (code []byte, err error) {
 			Keys:             make(map[string]bool),
 			MapOfBucketTypes: make(map[string]string),
 			SeqOfBucketTypes: make(map[string]string),
-			MapOfRecordTypes: make(map[string]*types.Pointer),
-			SeqOfRecordTypes: make(map[string]*types.Pointer),
+			MapOfRecordTypes: make(map[string]types.Type),
+			SeqOfRecordTypes: make(map[string]types.Type),
 			funcs:            make(template.FuncMap),
 		},
 		jsonTypes: make(map[*types.Named]bool),
@@ -293,69 +293,56 @@ func genType(ctx *context, fieldType types.Type) (dbType types.Type, isRec bool,
 
 		return fieldType, isRec, nil
 	case *types.Slice:
-		switch elemType := fieldType.Elem().(type) {
-		default:
-			return nil, false, fmt.Errorf("slice element must be pointer to struct or basic type")
-		case *types.Basic:
-			if !isSupportedBasic(elemType) {
-				return nil, false, fmt.Errorf("type %v unsupported", elemType)
-			}
-			return fieldType, true, nil
-		case *types.Pointer:
-			named, ok := elemType.Elem().(*types.Named)
-			if !ok {
-				return nil, false, fmt.Errorf("type %v unsupported", elemType)
-			}
-
-			var seqTypeName string
-
-			if isRecordType(ctx, named) {
-				pkgName := named.Obj().Pkg().Name()
-				ru, n := utf8.DecodeRuneInString(pkgName)
-				seqTypeName = "SeqOf" + string(unicode.ToUpper(ru)) + pkgName[n:] + named.Obj().Name()
-				ctx.sch.SeqOfRecordTypes[seqTypeName] = elemType
-			} else if _, ok := named.Underlying().(*types.Struct); ok {
-				seqTypeName = "SeqOf" + named.Obj().Name()
-				ctx.sch.SeqOfBucketTypes[seqTypeName] = named.Obj().Name()
-			} else {
-				return nil, false, fmt.Errorf("type %s unsupported", fieldType)
-			}
-
-			dbType = types.NewPointer(types.NewNamed(
-				types.NewTypeName(0, ctx.pkg.Types, seqTypeName, nil),
-				types.Typ[types.Invalid],
-				nil,
-			))
-			return dbType, false, nil
+		elemType, isRec, err := genType(ctx, fieldType.Elem())
+		if err != nil {
+			return nil, false, err
 		}
+
+		// Special case for []byte, we store that as a record.
+		if _, ok := elemType.(*types.Basic); ok {
+			return fieldType, true, nil
+		}
+
+		elemName, err := typeDescIdent(ctx.pkg.Types, elemType)
+		if err != nil {
+			return nil, false, err
+		}
+
+		seqTypeName := "SeqOf" + elemName
+		if isRec {
+			ctx.sch.SeqOfRecordTypes[seqTypeName] = elemType
+		} else {
+			ctx.sch.SeqOfBucketTypes[seqTypeName] = elemName
+		}
+
+		dbType = types.NewPointer(types.NewNamed(
+			types.NewTypeName(0, ctx.pkg.Types, seqTypeName, nil),
+			types.Typ[types.Invalid],
+			nil,
+		))
+		return dbType, false, nil
 	case *types.Map:
 		// TODO(kr): allow numeric types as map keys too
 		keyType, ok := fieldType.Key().(*types.Basic)
 		if !ok || keyType.Kind() != types.String {
 			return nil, false, fmt.Errorf("map key must be string")
 		}
-		ptr, ok := fieldType.Elem().(*types.Pointer)
-		if !ok {
-			return nil, false, fmt.Errorf("map value must be pointer to named struct type")
+
+		elemType, isRec, err := genType(ctx, fieldType.Elem())
+		if err != nil {
+			return nil, false, err
 		}
 
-		named, ok := ptr.Elem().(*types.Named)
-		if !ok {
-			return nil, false, fmt.Errorf("type %s unsupported", fieldType)
+		elemName, err := typeDescIdent(ctx.pkg.Types, elemType)
+		if err != nil {
+			return nil, false, err
 		}
 
-		var mapTypeName string
-
-		if isRecordType(ctx, named) {
-			pkgName := named.Obj().Pkg().Name()
-			ru, n := utf8.DecodeRuneInString(pkgName)
-			mapTypeName = "MapOf" + string(unicode.ToUpper(ru)) + pkgName[n:] + named.Obj().Name()
-			ctx.sch.MapOfRecordTypes[mapTypeName] = types.NewPointer(named)
-		} else if _, ok := named.Underlying().(*types.Struct); ok {
-			mapTypeName = "MapOf" + named.Obj().Name()
-			ctx.sch.MapOfBucketTypes[mapTypeName] = named.Obj().Name()
+		mapTypeName := "MapOf" + elemName
+		if isRec {
+			ctx.sch.MapOfRecordTypes[mapTypeName] = elemType
 		} else {
-			return nil, false, fmt.Errorf("type %s unsupported", fieldType)
+			ctx.sch.MapOfBucketTypes[mapTypeName] = elemName
 		}
 
 		dbType = types.NewPointer(types.NewNamed(
@@ -405,6 +392,47 @@ func isReserved(name string) bool {
 func isPointer(t types.Type) bool {
 	_, ok := t.(*types.Pointer)
 	return ok
+}
+
+// typeDescIdent returns an exported name suitable for describing t in p.
+// If t is a pointer to a named type already in p, it returns t's name.
+// If t is a pointer to a named type in another package, it combines
+// the package name, capitalized, with t's unqualified name.
+// If t is a basic type, it returns t's name capitalized.
+// If t is a slice of a basic type, it returns "SliceOf"
+// concatenated with t's name capitalized.
+// Other types are an error.
+func typeDescIdent(p *types.Package, t types.Type) (string, error) {
+	switch t := t.(type) {
+	case *types.Basic:
+		return exported(t.Name()), nil
+	case *types.Pointer:
+		named, ok := t.Elem().(*types.Named)
+		if !ok {
+			break
+		}
+		s := exported(named.Obj().Name())
+		if named.Obj().Pkg().Path() == p.Path() {
+			return s, nil
+		} else {
+			return exported(named.Obj().Pkg().Name()) + s, nil
+		}
+	case *types.Slice:
+		basic, ok := t.Elem().(*types.Basic)
+		if !ok {
+			break
+		}
+		return "SliceOf" + exported(basic.Name()), nil
+	}
+	return "", fmt.Errorf("cannot convert %v to a local name", t)
+}
+
+func exported(name string) string {
+	if ast.IsExported(name) {
+		return name
+	}
+	ru, n := utf8.DecodeRuneInString(name)
+	return string(unicode.ToUpper(ru)) + name[n:]
 }
 
 var basicTypes = make(map[string]*types.Basic)

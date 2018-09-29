@@ -61,7 +61,8 @@ func (o *SeqOfSampleBinary) Bucket() *bolt.Bucket {
 // Get reads the record stored in o under sequence number n.
 //
 // If no record has been stored, it returns
-// a pointer to the zero value.
+// a pointer to
+// the zero value.
 func (o *SeqOfSampleBinary) Get(n uint64) *sample.Binary {
 	key := make([]byte, 8)
 	binary.BigEndian.PutUint64(key, n)

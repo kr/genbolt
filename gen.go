@@ -293,34 +293,16 @@ func genType(ctx *context, fieldType types.Type) (dbType types.Type, isRec bool,
 
 		return fieldType, isRec, nil
 	case *types.Slice:
-		elemType, isRec, err := genType(ctx, fieldType.Elem())
-		if err != nil {
-			return nil, false, err
-		}
-
 		// Special case for []byte, we store that as a record.
-		if _, ok := elemType.(*types.Basic); ok {
+		if _, ok := fieldType.Elem().(*types.Basic); ok {
 			return fieldType, true, nil
 		}
 
-		elemName, err := typeDescIdent(ctx.pkg.Types, elemType)
-		if err != nil {
-			return nil, false, err
-		}
-
-		seqTypeName := "SeqOf" + elemName
-		if isRec {
-			ctx.sch.SeqOfRecordTypes[seqTypeName] = elemType
-		} else {
-			ctx.sch.SeqOfBucketTypes[seqTypeName] = elemName
-		}
-
-		dbType = types.NewPointer(types.NewNamed(
-			types.NewTypeName(0, ctx.pkg.Types, seqTypeName, nil),
-			types.Typ[types.Invalid],
-			nil,
-		))
-		return dbType, false, nil
+		dbType, err = genContainer(ctx, "SeqOf", fieldType.Elem(),
+			ctx.sch.SeqOfRecordTypes,
+			ctx.sch.SeqOfBucketTypes,
+		)
+		return dbType, false, err
 	case *types.Map:
 		// TODO(kr): allow numeric types as map keys too
 		keyType, ok := fieldType.Key().(*types.Basic)
@@ -328,30 +310,38 @@ func genType(ctx *context, fieldType types.Type) (dbType types.Type, isRec bool,
 			return nil, false, fmt.Errorf("map key must be string")
 		}
 
-		elemType, isRec, err := genType(ctx, fieldType.Elem())
-		if err != nil {
-			return nil, false, err
-		}
-
-		elemName, err := typeDescIdent(ctx.pkg.Types, elemType)
-		if err != nil {
-			return nil, false, err
-		}
-
-		mapTypeName := "MapOf" + elemName
-		if isRec {
-			ctx.sch.MapOfRecordTypes[mapTypeName] = elemType
-		} else {
-			ctx.sch.MapOfBucketTypes[mapTypeName] = elemName
-		}
-
-		dbType = types.NewPointer(types.NewNamed(
-			types.NewTypeName(0, ctx.pkg.Types, mapTypeName, nil),
-			types.Typ[types.Invalid],
-			nil,
-		))
-		return dbType, false, nil
+		dbType, err = genContainer(ctx, "MapOf", fieldType.Elem(),
+			ctx.sch.MapOfRecordTypes,
+			ctx.sch.MapOfBucketTypes,
+		)
+		return dbType, false, err
 	}
+}
+
+func genContainer(ctx *context, prefix string, schemaElemType types.Type, recordTypes map[string]types.Type, bucketTypes map[string]string) (types.Type, error) {
+	elemType, isRec, err := genType(ctx, schemaElemType)
+	if err != nil {
+		return nil, err
+	}
+
+	elemName, err := typeDescIdent(ctx.pkg.Types, elemType)
+	if err != nil {
+		return nil, err
+	}
+
+	typeName := prefix + elemName
+	if isRec {
+		recordTypes[typeName] = elemType
+	} else {
+		bucketTypes[typeName] = elemName
+	}
+
+	dbType := types.NewPointer(types.NewNamed(
+		types.NewTypeName(0, ctx.pkg.Types, typeName, nil),
+		types.Typ[types.Invalid],
+		nil,
+	))
+	return dbType, nil
 }
 
 func isBucketType(ctx *context, t *types.Named) bool {

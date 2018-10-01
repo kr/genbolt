@@ -6,9 +6,21 @@ It reads a set of Go type definitions
 describing the layout of data in a bolt database,
 and generates code for reading and writing that data.
 
-Each struct is a bucket. Maps and slices are
-also buckets. Fields with numeric types or
-string or []byte are values stored in the bucket.
+The following types are stored as records:
+
+	string
+	fixed-size basic types (bool, int8, uint8, int16, etc)
+	slices of fixed-size basic types
+	named types satisfying BinaryMarshaler (see below)
+	named types satisfying json.Marshaler (see below)
+
+The following types are stored as buckets:
+
+	named types defined in the schema's package
+	slices of any of these types (record or bucket)
+	map[string]T where T is any of these types
+
+All other types are not supported.
 
 For example, here is a schema definition:
 

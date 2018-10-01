@@ -3,6 +3,7 @@
 
 package db
 
+import bytes "bytes"
 import binary "encoding/binary"
 import json "encoding/json"
 import bolt "github.com/coreos/bbolt"
@@ -10,6 +11,7 @@ import foo "github.com/kr/genbolt/testdata/sample"
 
 const _ = binary.MaxVarintLen16
 const _ = bolt.MaxKeySize
+const _ = bytes.MinRead
 
 // T is a bucket with a static set of elements.
 // Accessor methods read and write records

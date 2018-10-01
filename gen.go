@@ -62,8 +62,9 @@ func gen(name string) (code []byte, err error) {
 			"trimprefix": strings.TrimPrefix,
 			"identical":  types.Identical,
 			"basic":      basicType,
-			"sliceof":    types.NewSlice,
+			"isslice":    isSlice,
 			"ispointer":  isPointer,
+			"sizeof":     types.SizesFor("gc", "amd64").Sizeof,
 		}).
 		Parse(schemaTemplate)
 	if err != nil {
@@ -175,6 +176,7 @@ func genFile(ctx *context, file *ast.File) error {
 	if len(ctx.binTypes) > 0 {
 		sch.Imports["encoding"] = "encoding"
 	}
+	sch.Imports["bytes"] = "bytes"
 	sch.Imports["encoding/binary"] = "binary"
 	sch.Imports["github.com/coreos/bbolt"] = "bolt"
 
@@ -293,8 +295,9 @@ func genType(ctx *context, fieldType types.Type) (dbType types.Type, isRec bool,
 
 		return fieldType, isRec, nil
 	case *types.Slice:
-		// Special case for []byte, we store that as a record.
-		if _, ok := fieldType.Elem().(*types.Basic); ok {
+		// Special case for []byte, []int64, etc. We store
+		// slices of fixed-size basic types as records.
+		if t, ok := fieldType.Elem().(*types.Basic); ok && isFixedSize(t) {
 			return fieldType, true, nil
 		}
 
@@ -362,8 +365,12 @@ func esprint(node interface{}) string {
 }
 
 func isSupportedBasic(t *types.Basic) bool {
+	return isFixedSize(t) || t.Kind() == types.String
+}
+
+func isFixedSize(t *types.Basic) bool {
 	switch t.Kind() {
-	case types.Bool, types.String,
+	case types.Bool,
 		types.Int8, types.Int16, types.Int32, types.Int64,
 		types.Uint8, types.Uint16, types.Uint32, types.Uint64:
 		return true
@@ -381,6 +388,11 @@ func isReserved(name string) bool {
 
 func isPointer(t types.Type) bool {
 	_, ok := t.(*types.Pointer)
+	return ok
+}
+
+func isSlice(t types.Type) bool {
+	_, ok := t.(*types.Slice)
 	return ok
 }
 

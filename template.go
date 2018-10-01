@@ -22,10 +22,20 @@ const schemaTemplate = `
 		panic(err)
 	}
 	return v
-{{- else if identical . (sliceof (basic "uint8")) -}}
-	v := make([]byte, len(rec))
-	copy(v, rec)
-	return v
+{{- else if isslice . -}}
+	{{- if identical .Elem (basic "uint8") -}}
+		v := make([]byte, len(rec))
+		copy(v, rec)
+		return v
+	{{- else -}}
+		b := bytes.NewReader(rec)
+		v := make({{typestring .}}, len(rec)/{{sizeof .Elem}})
+		err := binary.Read(b, binary.BigEndian, &v)
+		if err != nil {
+			panic(err)
+		}
+		return v
+	{{- end -}}
 {{- else if identical . (basic "string") -}}
 	return string(rec)
 {{- else if identical . (basic "bool") -}}
@@ -86,8 +96,17 @@ const schemaTemplate = `
 	if err != nil {
 		panic(err)
 	}
-{{- else if identical . (sliceof (basic "uint8")) -}}
-	rec := v
+{{- else if isslice . -}}
+	{{- if identical .Elem (basic "uint8") -}}
+		rec := v
+	{{- else -}}
+		var b bytes.Buffer
+		err := binary.Write(&b, binary.BigEndian, v)
+		if err != nil {
+			panic(err)
+		}
+		rec := b.Bytes()
+	{{- end -}}
 {{- else if identical . (basic "string") -}}
 	rec := []byte(v)
 {{- else if identical . (basic "bool") -}}
@@ -131,6 +150,7 @@ import {{$name}} {{printf "%q" $path}}
 
 const _ = binary.MaxVarintLen16
 const _ = bolt.MaxKeySize
+const _ = bytes.MinRead
 
 {{range .StructTypes}}
 {{ $level := or (and .IsRoot "Tx") "Bucket" }}

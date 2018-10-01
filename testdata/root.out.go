@@ -3,11 +3,13 @@
 
 package db
 
+import bytes "bytes"
 import binary "encoding/binary"
 import bolt "github.com/coreos/bbolt"
 
 const _ = binary.MaxVarintLen16
 const _ = bolt.MaxKeySize
+const _ = bytes.MinRead
 
 // Root is a bucket with a static set of elements.
 //

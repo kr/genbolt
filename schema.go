@@ -24,8 +24,8 @@ type schema struct {
 	// The map value is the type of the container's element.
 	MapOfBucketTypes map[string]string
 	SeqOfBucketTypes map[string]string
-	MapOfRecordTypes map[string]*types.Pointer
-	SeqOfRecordTypes map[string]*types.Pointer
+	MapOfRecordTypes map[string]types.Type
+	SeqOfRecordTypes map[string]types.Type
 
 	// Fields pointing to single records, including plain
 	// Go data types like int64 and []byte, and types that

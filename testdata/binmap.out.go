@@ -61,7 +61,8 @@ func (o *MapOfSampleBinary) Bucket() *bolt.Bucket {
 // Get reads the record stored in o under the given key.
 //
 // If no record has been stored, it returns
-// a pointer to the zero value.
+// a pointer to
+// the zero value.
 func (o *MapOfSampleBinary) Get(key []byte) *sample.Binary {
 	rec := get(o.db, key)
 	v := new(sample.Binary)
